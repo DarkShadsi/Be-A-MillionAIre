@@ -1,0 +1,27 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify
+        shell: pwsh
+        run: .\mvnw.cmd -B -ntp verify
+      - name: Upload JavaFX previews and test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification
+          path: |
+            target/surefire-reports/
+            target/ui-smoke/
