@@ -14,7 +14,7 @@ public final class GamePresentation {
     final AssetCatalog assets;
     final Runnable fullscreen, exit;
     Theme theme=Theme.DARK;
-    boolean reduceMotion, motionSuppressed;
+    boolean reduceMotion;
     final BorderPane root=new BorderPane();
     final StackPane screens=new StackPane();
     final OverlayHost overlays=new OverlayHost(screens);
@@ -35,11 +35,7 @@ public final class GamePresentation {
     public void requestExit(){popup("Exit game?","Close Be a Millionaire?","Exit",exit,"Cancel",this::closeOverlay);}
     public boolean closeOverlay(){return overlays.close();}
     public boolean reducedMotion(){return reduceMotion;}
-    public void setMotionSuppressed(boolean value){
-        motionSuppressed=value;
-        router.refresh();
-    }
-    boolean motionEnabled(){return !reduceMotion&&!motionSuppressed;}
+    boolean motionEnabled(){return !reduceMotion;}
     public boolean motionRunning(){
         return root.lookupAll(".button").stream().filter(GameButton.class::isInstance)
                 .map(GameButton.class::cast).anyMatch(GameButton::motionRunning);
