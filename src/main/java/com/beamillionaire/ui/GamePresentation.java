@@ -10,6 +10,7 @@ import javafx.scene.paint.Color;
 import java.util.*;
 import java.util.function.Consumer;
 import static com.beamillionaire.ui.design.ScreenRouter.Screen;
+import com.beamillionaire.domain.*;
 public final class GamePresentation {
     final AssetCatalog assets;
     final Runnable fullscreen, exit;
@@ -20,11 +21,25 @@ public final class GamePresentation {
     final OverlayHost overlays=new OverlayHost(screens);
     final ScreenRouter router=new ScreenRouter(screens);
     final DesignViewport viewport=new DesignViewport(1920,1080);
-    public GamePresentation(AssetCatalog assets, Runnable fullscreen, Runnable exit) {
+    final QuestionBank bank;
+    static final Map<String,Category> CATEGORIES=new LinkedHashMap<>();
+    static {
+        CATEGORIES.put("ai-fundamentals",Category.AI_FUNDAMENTALS);
+        CATEGORIES.put("neural-networks",Category.NEURAL_NETWORKS);
+        CATEGORIES.put("future-of-ai",Category.FUTURE_OF_AI);
+        CATEGORIES.put("search-game-playing",Category.SEARCH_AND_GAME_PLAYING);
+        CATEGORIES.put("machine-learning",Category.MACHINE_LEARNING);
+        CATEGORIES.put("deep-learning",Category.DEEP_LEARNING);
+        CATEGORIES.put("research-in-ai",Category.RESEARCH_IN_AI);
+        CATEGORIES.put("knowledge-problem-representation",Category.KNOWLEDGE_AND_PROBLEM_REPRESENTATION);
+    }
+    public GamePresentation(QuestionBank bank, AssetCatalog assets, Runnable fullscreen, Runnable exit) {
         this.assets=assets;this.fullscreen=fullscreen;this.exit=exit;
+        this.bank=bank;
         screens.setPrefSize(1920,1080);screens.setMinSize(1920,1080);screens.setMaxSize(1920,1080);
         overlays.setPrefSize(1920,1080);viewport.canvas().getChildren().addAll(screens,overlays);root.setCenter(viewport);
         register(Screen.HOME,this::home);
+        register(Screen.CATEGORIES,this::categories);
         root.setStyle("-fx-background-color: "+(theme==Theme.DARK?"#02060a":"#f4fafa")+";");
         show(Screen.HOME);
         root.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED,event->{
@@ -91,5 +106,10 @@ public final class GamePresentation {
         if(secondary==null)action(pane,primary,365,475,320,yes);
         else{action(pane,primary,165,475,300,yes);action(pane,secondary,580,475,300,no);}
         overlays.show(pane);
+    }
+    void categories(Pane pane){ CategoryScreen.render(this,pane); }
+    void chooseCategory(Category category){
+        boolean ready=Arrays.stream(Difficulty.values()).allMatch(d->bank.pool(category,d).size()>=QuestionBank.QUESTIONS_PER_DIFFICULTY);
+        popup(category.displayName(),ready?"This category is ready.":"This category needs five easy, five medium, and five hard questions.","Close",this::closeOverlay,"Home",()->show(Screen.HOME));
     }
 }

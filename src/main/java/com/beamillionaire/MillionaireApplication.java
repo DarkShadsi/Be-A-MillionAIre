@@ -1,6 +1,7 @@
 package com.beamillionaire;
 
 import com.beamillionaire.application.Theme;
+import com.beamillionaire.storage.*;
 import com.beamillionaire.ui.*;
 import com.beamillionaire.ui.assets.AssetCatalog;
 import com.beamillionaire.ui.design.FullscreenSupport;
@@ -19,7 +20,7 @@ public final class MillionaireApplication extends Application {
         try {
             stage.setTitle("Be a Millionaire");stage.setMinWidth(960);stage.setMinHeight(540);
             var assets=AssetCatalog.load();
-            var game=new GamePresentation(assets,
+            var game=new GamePresentation(new CsvQuestionRepository(AppPaths.questionDataDirectory()).load(),assets,
                     ()->stage.setFullScreen(!stage.isFullScreen()),Platform::exit);
             var scene=new Scene(game.root(),1280,720);
             stage.setScene(scene);FullscreenSupport.install(stage,game::closeOverlay);
