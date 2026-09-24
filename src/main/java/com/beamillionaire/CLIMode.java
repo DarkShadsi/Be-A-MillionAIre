@@ -1,6 +1,8 @@
 package com.beamillionaire;
 
 import com.beamillionaire.domain.*;
+import com.beamillionaire.engine.GameRound;
+import com.beamillionaire.engine.GameRules;
 import com.beamillionaire.engine.QuestionSelector;
 import java.util.*;
 import java.nio.file.Path;
@@ -18,6 +20,7 @@ public class CLIMode {
 
         while (true) {
             QuestionBank bank;
+            GameRound gameRound;
             try {
                 bank = new CsvQuestionRepository(directory).load();
             } catch (IOException error) {
@@ -63,13 +66,16 @@ public class CLIMode {
             }
             Category category = available.get(number - 1);
             List<Question> questions = new QuestionSelector().select(bank, category, new Random());
+            gameRound = new GameRound(bank, category, new Random());
+
             int score = 0;
             int answered = 0;
             boolean backToMenu = false;
 
-            for (Question question : questions) {
+            while (gameRound.status() == GameRound.Status.ANSWERING) {
+                Question question = gameRound.question();
                 System.out.println();
-                System.out.println("----------------------------------------");
+                System.out.println("----------------------");
                 System.out.printf("QUESTION %d OF %d  -  %s%n%n", answered + 1, questions.size(), question.difficulty());
                 System.out.println(question.text());
                 System.out.println();
@@ -77,12 +83,18 @@ public class CLIMode {
                     System.out.println("  " + option.id() + ") " + option.text());
                 }
                 System.out.println();
-                System.out.println("H: Hint   I: Inspect model   M: Menu   Q: Quit");
+                System.out.println("H: Hint   I: Inspect model   M: Menu   Q: Quit  W: Walk away");
 
                 while (true) {
                     System.out.print("Your answer (A-D): ");
                     choice = read(input);
                     if (choice.equals("Q")) return;
+                    if (choice.equals("W")) {
+                        gameRound.walkAway();
+                        System.out.printf("You chose to walk away. You got a total of %d credits.%n", gameRound.payout());
+                        backToMenu = true;
+                        break;
+                    }
                     if (choice.equals("M")) { backToMenu = true; break; }
                     if (choice.equals("H")) {
                         System.out.println("Hint: " + question.clue());
@@ -93,23 +105,35 @@ public class CLIMode {
                         continue;
                     }
                     if (!choice.matches("[A-D]")) {
-                        System.out.println("Please enter A-D, H, I, M or Q.");
+                        System.out.println("Please enter A-D, H, I, M, Q or W.");
                         continue;
                     }
 
                     answered++;
                     System.out.println();
-                    if (choice.equals(question.correctChoiceId())) {
-                        score++;
-                        System.out.println("Correct!");
-                    } else {
-                        for (Choice option : question.choices()) {
-                            if (option.id().equals(question.correctChoiceId())) {
-                                System.out.println("Not quite. The answer is " + option.id() + ") " + option.text());
+                    gameRound.select(choice);
+                    gameRound.lockAnswer();
+                    switch (gameRound.status()) {
+                        case GameRound.Status.WON:
+                            System.out.printf("Congratulations! You won %d!!", gameRound.payout());
+                            backToMenu = true;
+                            break;
+                        case GameRound.Status.CORRECT:
+                            System.out.printf("CORRECT!  | Current credit: %d | Guaranteed payout: %d%n", gameRound.credits(), GameRules.guaranteedCredits(gameRound.correctAnswers()));
+                            gameRound.nextQuestion();
+                            break;
+                        case GameRound.Status.LOST:
+                            for(Choice option:  question.choices()) {
+                                if (option.id().equals(question.correctChoiceId())) {
+                                    System.out.println("Not quite. The answer is " + option.id() + ") " + option.text());
+                                }
                             }
-                        }
+                            System.out.printf("GAME OVER. You got %d credits.%n", gameRound.payout());
+                            backToMenu = true;
+                            break;
+
                     }
-                    System.out.printf("Score: %d / %d%n", score, answered);
+                    System.out.printf("Score: %d / %d%n", gameRound.correctAnswers(), answered);
                     break;
                 }
                 if (backToMenu) break;
@@ -118,7 +142,7 @@ public class CLIMode {
                     if (read(input).equals("Q")) return;
                 }
             }
-            System.out.printf("%nPractice finished. Score: %d / %d%n", score, answered);
+            System.out.printf("%nPractice finished. Score: %d / %d%n", gameRound.correctAnswers(), answered);
         }
     }
 
