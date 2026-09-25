@@ -11,6 +11,7 @@ import java.util.*;
 import java.util.function.Consumer;
 import static com.beamillionaire.ui.design.ScreenRouter.Screen;
 import com.beamillionaire.domain.*;
+import com.beamillionaire.application.*;
 public final class GamePresentation {
     final AssetCatalog assets;
     final Runnable fullscreen, exit;
@@ -33,13 +34,15 @@ public final class GamePresentation {
         CATEGORIES.put("research-in-ai",Category.RESEARCH_IN_AI);
         CATEGORIES.put("knowledge-problem-representation",Category.KNOWLEDGE_AND_PROBLEM_REPRESENTATION);
     }
-    public GamePresentation(QuestionBank bank, AssetCatalog assets, Runnable fullscreen, Runnable exit) {
+    final AppService service;
+    public GamePresentation(AppService service, StartupState startup, AssetCatalog assets, Runnable fullscreen, Runnable exit) {
         this.assets=assets;this.fullscreen=fullscreen;this.exit=exit;
-        this.bank=bank;
+        this.service=service;this.bank=startup.bank();this.theme=startup.preferences().theme();this.reduceMotion=startup.preferences().reduceMotion();
         screens.setPrefSize(1920,1080);screens.setMinSize(1920,1080);screens.setMaxSize(1920,1080);
         overlays.setPrefSize(1920,1080);viewport.canvas().getChildren().addAll(screens,overlays);root.setCenter(viewport);
         register(Screen.HOME,this::home);
         register(Screen.CATEGORIES,this::categories);
+        register(Screen.MENU,this::menu);
         root.setStyle("-fx-background-color: "+(theme==Theme.DARK?"#02060a":"#f4fafa")+";");
         show(Screen.HOME);
         root.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED,event->{
@@ -111,5 +114,21 @@ public final class GamePresentation {
     void chooseCategory(Category category){
         boolean ready=Arrays.stream(Difficulty.values()).allMatch(d->bank.pool(category,d).size()>=QuestionBank.QUESTIONS_PER_DIFFICULTY);
         popup(category.displayName(),ready?"This category is ready.":"This category needs five easy, five medium, and five hard questions.","Close",this::closeOverlay,"Home",()->show(Screen.HOME));
+    }
+    void menu(Pane pane){ MenuScreen.render(this,pane); }
+    void toggleTheme(){
+        theme=theme==Theme.DARK?Theme.LIGHT:Theme.DARK;
+        root.setStyle("-fx-background-color: "+(theme==Theme.DARK?"#02060a":"#f4fafa")+";");
+        router.refresh();
+        savePreferences();
+    }
+    void toggleMotion(){
+        reduceMotion=!reduceMotion;
+        router.refresh();
+        savePreferences();
+    }
+    void savePreferences(){
+        service.savePreferences(new AppPreferences(theme,reduceMotion))
+                .ifPresent(message->popup("Settings",message,"Close",this::closeOverlay,null,null));
     }
 }
