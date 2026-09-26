@@ -3,7 +3,6 @@ package com.beamillionaire;
 import com.beamillionaire.domain.*;
 import com.beamillionaire.engine.GameRound;
 import com.beamillionaire.engine.GameRules;
-import com.beamillionaire.engine.QuestionSelector;
 import java.util.*;
 import java.nio.file.Path;
 import com.beamillionaire.storage.AppPaths;
@@ -65,10 +64,8 @@ public class CLIMode {
                 continue;
             }
             Category category = available.get(number - 1);
-            List<Question> questions = new QuestionSelector().select(bank, category, new Random());
             gameRound = new GameRound(bank, category, new Random());
 
-            int score = 0;
             int answered = 0;
             boolean backToMenu = false;
 
@@ -76,14 +73,16 @@ public class CLIMode {
                 Question question = gameRound.question();
                 System.out.println();
                 System.out.println("----------------------");
-                System.out.printf("QUESTION %d OF %d  -  %s%n%n", answered + 1, questions.size(), question.difficulty());
+                System.out.printf("QUESTION %d OF %d  -  %s%n%n", gameRound.questionNumber(), GameRules.QUESTIONS_PER_ROUND, question.difficulty());
                 System.out.println(question.text());
                 System.out.println();
                 for (Choice option : question.choices()) {
-                    System.out.println("  " + option.id() + ") " + option.text());
+                    if (!gameRound.eliminatedOptions().contains(option.id())) {
+                        System.out.println("  " + option.id() + ") " + option.text());
+                    }
                 }
                 System.out.println();
-                System.out.println("H: Hint   I: Inspect model   M: Menu   Q: Quit  W: Walk away");
+                System.out.println("F: 50:50   C: Clue   I: Inspect model   M: Menu   Q: Quit   W: Walk away");
 
                 while (true) {
                     System.out.print("Your answer (A-D): ");
@@ -96,8 +95,25 @@ public class CLIMode {
                         break;
                     }
                     if (choice.equals("M")) { backToMenu = true; break; }
-                    if (choice.equals("H")) {
-                        System.out.println("Hint: " + question.clue());
+                    if (choice.equals("F")) {
+                        if (gameRound.useHelp(GameRound.Help.FIFTY_FIFTY)) {
+                            System.out.println("50:50 used. Remaining choices:");
+                            for (Choice option : question.choices()) {
+                                if (!gameRound.eliminatedOptions().contains(option.id())) {
+                                    System.out.println("  " + option.id() + ") " + option.text());
+                                }
+                            }
+                        } else {
+                            System.out.println("50:50 is already used or unavailable.");
+                        }
+                        continue;
+                    }
+                    if (choice.equals("C")) {
+                        if (gameRound.useHelp(GameRound.Help.CLUE)) {
+                            System.out.println("Clue: " + gameRound.clue());
+                        } else {
+                            System.out.println("Clue is already used or unavailable.");
+                        }
                         continue;
                     }
                     if (choice.equals("I")) {
@@ -105,7 +121,11 @@ public class CLIMode {
                         continue;
                     }
                     if (!choice.matches("[A-D]")) {
-                        System.out.println("Please enter A-D, H, I, M, Q or W.");
+                        System.out.println("Please enter A-D, F, C, I, M, Q or W.");
+                        continue;
+                    }
+                    if (gameRound.eliminatedOptions().contains(choice)) {
+                        System.out.println("That choice was removed by 50:50.");
                         continue;
                     }
 
@@ -137,7 +157,7 @@ public class CLIMode {
                     break;
                 }
                 if (backToMenu) break;
-                if (answered < questions.size()) {
+                if (answered < GameRules.QUESTIONS_PER_ROUND) {
                     System.out.print("Press Enter for the next question, or Q to quit: ");
                     if (read(input).equals("Q")) return;
                 }
