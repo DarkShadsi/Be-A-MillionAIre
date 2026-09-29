@@ -3,6 +3,7 @@ package com.beamillionaire.ui;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Text;
 import java.util.List;
 import java.util.Locale;
 import com.beamillionaire.engine.GameRound;
@@ -18,7 +19,17 @@ final class GameplayScreen {
         if(game.round==null)return;
         game.background(pane,"gameplay");
         GameplayViewState state=game.gameplayState();
-        game.text(pane,state.category().toUpperCase(Locale.ROOT),100,170,330,85,33,true);
+        String category=state.category().toUpperCase(Locale.ROOT);
+        // Fit the full heading, including the longest categories, within the artwork.
+        var measure=new Text(category);
+        measure.setWrappingWidth(326);
+        double headingSize=33;
+        measure.setFont(game.assets.font("heading",headingSize));
+        while(headingSize>18&&measure.getLayoutBounds().getHeight()>81){
+            measure.setFont(game.assets.font("heading",--headingSize));
+        }
+        var heading=game.text(pane,category,100,170,330,85,headingSize,true);
+        heading.setId("categoryHeading");
         game.text(pane,String.format("QUESTION %02d",state.questionNumber()),750,76,420,62,34,true);
         var content=new QuestionContent(state.question(),state.choices(),size->game.assets.font("body",size),game.ink(),34.9178,28);
         content.resizeRelocate(559,269,812,354);content.setPrefSize(812,354);pane.getChildren().add(content);
@@ -57,6 +68,5 @@ final class GameplayScreen {
             var marker=new javafx.scene.shape.Circle(1504,197+(15-checkpoint)*37.9590363153,5,Color.web("#dec33f"));
             marker.setMouseTransparent(true);pane.getChildren().add(marker);
         }
-    
     }
 }
