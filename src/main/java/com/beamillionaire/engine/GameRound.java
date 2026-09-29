@@ -20,7 +20,6 @@ public final class GameRound {
     private String firstWrongAnswer;
     private boolean secondChanceActive;
     private boolean clueVisible;
-    private boolean helpUsedThisQuestion;
 
     public GameRound(QuestionBank bank, Category category, Random random) {
         this.questions = new QuestionSelector().select(bank, category, random);
@@ -73,16 +72,15 @@ public final class GameRound {
 
     public boolean helpAvailable(Help help) {
         Objects.requireNonNull(help);
-        // Second Chance must be activated before the first lock. 
+        // Different unused helps can be combined. Second Chance must be
+        // activated before the first lock and is consumed immediately.
         return selectionEnabled() && !usedHelps.contains(help)
-            && !helpUsedThisQuestion
             && (help != Help.SECOND_CHANCE || status == Status.ANSWERING);
     }
 
     public boolean useHelp(Help help) {
         if (!helpAvailable(help)) return false;
         usedHelps.add(help);
-        helpUsedThisQuestion = true;
         switch (help) {
             case CLUE -> clueVisible = true;
             case SECOND_CHANCE -> secondChanceActive = true;
@@ -110,7 +108,6 @@ public final class GameRound {
         secondChanceActive = false;
         clueVisible = false;
         eliminated.clear();
-        helpUsedThisQuestion = false;
         status = Status.ANSWERING;
     }
 
