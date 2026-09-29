@@ -5,8 +5,8 @@ import java.util.*;
 
 /** A single round. All answer evaluation, help eligibility and payouts live here. */
 public final class GameRound {
-    public enum Help { FIFTY_FIFTY, CLUE }
-    public enum Status { ANSWERING, CORRECT, WON, LOST, WALKED_AWAY }
+    public enum Help { FIFTY_FIFTY, CLUE, SECOND_CHANCE }
+    public enum Status { ANSWERING, RETRY, CORRECT, WON, LOST, WALKED_AWAY }
 
     private final List<Question> questions;
     private final Random random;
@@ -17,7 +17,10 @@ public final class GameRound {
     private int correctAnswers;
     private int payout;
     private String selected;
+    private String firstWrongAnswer;
+    private boolean secondChanceActive;
     private boolean clueVisible;
+    private boolean helpUsedThisQuestion;
 
     public GameRound(QuestionBank bank, Category category, Random random) {
         this.questions = new QuestionSelector().select(bank, category, random);
@@ -31,12 +34,12 @@ public final class GameRound {
     public int payout() { return payout; }
     public Status status() { return status; }
     public String selectedAnswer() { return selected; }
-
+    public String firstWrongAnswer() { return firstWrongAnswer; }
     public Set<String> eliminatedOptions() { return Set.copyOf(eliminated); }
     public Set<Help> usedHelps() { return Set.copyOf(usedHelps); }
-
+    public boolean secondChanceActive() { return secondChanceActive; }
     public String clue() { return clueVisible ? question().clue() : ""; }
-    public boolean selectionEnabled() { return status == Status.ANSWERING; }
+    public boolean selectionEnabled() { return status == Status.ANSWERING || status == Status.RETRY; }
     public boolean lockEnabled() { return selectionEnabled() && selected != null; }
     public boolean walkAwayEnabled() { return status == Status.ANSWERING; }
     public boolean finished() { return status == Status.WON || status == Status.LOST || status == Status.WALKED_AWAY; }
@@ -51,10 +54,17 @@ public final class GameRound {
         if (!lockEnabled()) return;
         if (question().correctChoiceId().equals(selected)) {
             correctAnswers++;
+            secondChanceActive = false;
             if (correctAnswers == GameRules.QUESTIONS_PER_ROUND) {
                 status = Status.WON;
                 payout = credits();
             } else status = Status.CORRECT;
+        } else if (secondChanceActive && status == Status.ANSWERING) {
+            secondChanceActive = false;
+            firstWrongAnswer = selected;
+            eliminated.add(selected);
+            selected = null;
+            status = Status.RETRY;
         } else {
             status = Status.LOST;
             payout = GameRules.guaranteedCredits(correctAnswers);
@@ -62,17 +72,23 @@ public final class GameRound {
     }
 
     public boolean helpAvailable(Help help) {
-        return selectionEnabled() && !usedHelps.contains(Objects.requireNonNull(help));
+        Objects.requireNonNull(help);
+        // Second Chance must be activated before the first lock. 
+        return selectionEnabled() && !usedHelps.contains(help)
+            && !helpUsedThisQuestion
+            && (help != Help.SECOND_CHANCE || status == Status.ANSWERING);
     }
 
     public boolean useHelp(Help help) {
         if (!helpAvailable(help)) return false;
         usedHelps.add(help);
+        helpUsedThisQuestion = true;
         switch (help) {
             case CLUE -> clueVisible = true;
+            case SECOND_CHANCE -> secondChanceActive = true;
             case FIFTY_FIFTY -> {
                 var wrong = new ArrayList<>(question().choices().stream()
-                        .map(Choice::id).filter(id -> !id.equals(question().correctChoiceId())).toList());
+                    .map(Choice::id).filter(id -> !id.equals(question().correctChoiceId())).toList());
                 Collections.shuffle(wrong, random);
                 // During a retry one wrong option is already disabled. Complete
                 // the elimination to two wrong options without removing the key.
@@ -90,8 +106,11 @@ public final class GameRound {
         if (status != Status.CORRECT) return;
         index++;
         selected = null;
+        firstWrongAnswer = null;
+        secondChanceActive = false;
         clueVisible = false;
         eliminated.clear();
+        helpUsedThisQuestion = false;
         status = Status.ANSWERING;
     }
 
@@ -99,5 +118,6 @@ public final class GameRound {
         if (!walkAwayEnabled()) return;
         payout = credits();
         status = Status.WALKED_AWAY;
+        secondChanceActive = false;
     }
 }
