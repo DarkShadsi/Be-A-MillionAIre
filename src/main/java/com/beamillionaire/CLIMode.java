@@ -90,7 +90,7 @@ public class CLIMode {
                     if (choice.equals("Q")) return;
                     if (choice.equals("W")) {
                         gameRound.walkAway();
-                        System.out.printf("You chose to walk away. You got a total of %d credits.%n", gameRound.payout());
+                        System.out.printf(Locale.US, "You walked away with %,d credits.%n", gameRound.payout());
                         backToMenu = true;
                         break;
                     }
@@ -135,11 +135,11 @@ public class CLIMode {
                     gameRound.lockAnswer();
                     switch (gameRound.status()) {
                         case GameRound.Status.WON:
-                            System.out.printf("Congratulations! You won %d!!", gameRound.payout());
+                            System.out.printf(Locale.US, "Congratulations! You won %,d credits.%n", gameRound.payout());
                             backToMenu = true;
                             break;
                         case GameRound.Status.CORRECT:
-                            System.out.printf("CORRECT!  | Current credit: %d | Guaranteed payout: %d%n", gameRound.credits(), GameRules.guaranteedCredits(gameRound.correctAnswers()));
+                            System.out.printf(Locale.US, "CORRECT! | Current credits: %,d | Guaranteed payout: %,d credits%n", gameRound.credits(), GameRules.guaranteedCredits(gameRound.correctAnswers()));
                             gameRound.nextQuestion();
                             break;
                         case GameRound.Status.LOST:
@@ -148,7 +148,7 @@ public class CLIMode {
                                     System.out.println("Not quite. The answer is " + option.id() + ") " + option.text());
                                 }
                             }
-                            System.out.printf("GAME OVER. You got %d credits.%n", gameRound.payout());
+                            System.out.printf(Locale.US, "GAME OVER. You received %,d credits.%n", gameRound.payout());
                             backToMenu = true;
                             break;
 

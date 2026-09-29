@@ -1,7 +1,6 @@
 package com.beamillionaire.ui;
 
 import javafx.animation.*;
-import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.VPos;
 import javafx.scene.Group;
 import javafx.scene.Parent;
@@ -42,14 +41,14 @@ public final class SplashScreen {
     private static final double PROGRESS_TRACK_WIDTH_TO_SCREEN_W_RATIO = 0.70;
     private static final double PROGRESS_BOTTOM_OFFSET_RATIO = 0.10;
 
-    private static final Color PROGRESS_LABEL_COLOR = Color.web("#5b6b76");
+    private static final Color PROGRESS_LABEL_COLOR = Color.web("#9fb7c7");
     private static final Color PROGRESS_TRACK_COLOR = Color.web("#13202b");
     private static final Color PROGRESS_FILL_COLOR = Color.web("#00a3e0");
 
-    private static final double PROGRESS_LOAD_SECONDS = 5.0;
     private static final double SHIMMER_CYCLE_SECONDS = 5.0;
     private static final Color LOGO_SETTLE_COLOR = Color.web("#00a3e0");
     private static final double REVEAL_FADE_SECONDS = 0.75;
+    private static final double REVEALED_HOLD_SECONDS = 3.0;
 
     // Classpath-relative asset paths (mirrors AssetCatalog's use of getResourceAsStream)
     private static final String ASSETS_DIR = "/ui/assets/dark/splash/";
@@ -70,8 +69,8 @@ public final class SplashScreen {
     private Rectangle progressTrack, progressFill;
     private Group progressGroup;
 
-    private final SimpleBooleanProperty animationDone = new SimpleBooleanProperty(false);
-    private final SimpleBooleanProperty loadingDone = new SimpleBooleanProperty(false);
+    private boolean introDone, loadingDone;
+    private Transition shimmer, revealTrigger, reveal, introHold, spinHud, loadingIndicator;
     private Runnable onReady;
 
     public SplashScreen() {
@@ -83,9 +82,9 @@ public final class SplashScreen {
         root.getChildren().addAll(hudView, textGroup, logoGroup, progressGroup);
         root.setStyle("-fx-background-color: #070c12;");
 
-        Transition shimmer = buildShimmer();
-        PauseTransition revealTrigger = new PauseTransition(Duration.seconds(3.1));
-        revealTrigger.setOnFinished(e -> revealRestOfScene());
+        shimmer = buildShimmer();
+        revealTrigger = new PauseTransition(Duration.seconds(3.1));
+        revealTrigger.setOnFinished(event -> revealRestOfScene());
         shimmer.play();
         revealTrigger.play();
     }
@@ -100,15 +99,21 @@ public final class SplashScreen {
     }
 
     public void notifyLoadingComplete() {
-        loadingDone.set(true);
+        loadingDone = true;
         checkReady();
     }
 
     private void checkReady() {
-        if (onReady != null && animationDone.get() && loadingDone.get()) {
+        if (onReady != null && introDone && loadingDone) {
             Runnable callback = onReady;
             onReady = null;
             callback.run();
+        }
+    }
+
+    public void stopAnimations() {
+        for (Animation animation : new Animation[]{shimmer, revealTrigger, reveal, introHold, spinHud, loadingIndicator}) {
+            if (animation != null) animation.stop();
         }
     }
 
@@ -190,6 +195,12 @@ public final class SplashScreen {
         loadingLabel = new Text("Loading...");
         loadingLabel.setFill(PROGRESS_LABEL_COLOR);
         loadingLabel.setTextOrigin(VPos.TOP);
+        try (InputStream stream = SplashScreen.class.getResourceAsStream("/ui/assets/fonts/body.ttf")) {
+            Font font = stream == null ? null : Font.loadFont(stream, 24);
+            if (font != null) loadingLabel.setFont(font);
+        } catch (java.io.IOException error) {
+            loadingLabel.setFont(Font.getDefault());
+        }
 
         progressTrack = new Rectangle();
         progressTrack.setFill(PROGRESS_TRACK_COLOR);
@@ -269,30 +280,42 @@ public final class SplashScreen {
         FadeTransition fadeProgress = new FadeTransition(fadeDuration, progressGroup);
         fadeProgress.setToValue(1);
 
-        ParallelTransition reveal = new ParallelTransition(
+        reveal = new ParallelTransition(
             fadeShimmerAOut, fadeShimmerIOut, fadeSolidAIn, fadeSolidIIn,
             fadeText, fadeHud, fadeProgress
         );
         reveal.setInterpolator(Interpolator.EASE_BOTH);
+        introHold = new PauseTransition(Duration.seconds(REVEALED_HOLD_SECONDS));
+        introHold.setOnFinished(event -> {
+            introDone = true;
+            checkReady();
+        });
+        reveal.setOnFinished(event -> introHold.play());
         reveal.play();
 
-        RotateTransition spinHud = new RotateTransition(Duration.seconds(20), hudView);
-        spinHud.setByAngle(360);
+        var hudRotation = new RotateTransition(Duration.seconds(20), hudView);
+        hudRotation.setByAngle(360);
+        spinHud = hudRotation;
         spinHud.setCycleCount(Animation.INDEFINITE);
         spinHud.setInterpolator(Interpolator.LINEAR);
         spinHud.play();
 
-        Timeline progressFillTimeline = new Timeline(
-            new KeyFrame(Duration.ZERO, new KeyValue(progressFill.widthProperty(), 0)),
-            new KeyFrame(Duration.seconds(PROGRESS_LOAD_SECONDS),
-                new KeyValue(progressFill.widthProperty(), progressTrack.getWidth(), Interpolator.LINEAR))
-        );
-        progressFillTimeline.setDelay(Duration.seconds(0.5));
-        progressFillTimeline.setOnFinished(e -> {
-            animationDone.set(true);
-            checkReady();
-        });
-        progressFillTimeline.play();
+        loadingIndicator = new Transition() {
+            {
+                setCycleDuration(Duration.seconds(1.2));
+                setCycleCount(Animation.INDEFINITE);
+                setAutoReverse(true);
+                setInterpolator(Interpolator.EASE_BOTH);
+            }
+
+            @Override protected void interpolate(double fraction) {
+                double width = progressTrack.getWidth();
+                double segmentWidth = width * 0.25;
+                progressFill.setWidth(segmentWidth);
+                progressFill.setX(progressTrack.getX() + fraction * (width - segmentWidth));
+            }
+        };
+        loadingIndicator.play();
     }
 
     private void layout(double sceneW, double sceneH) {
@@ -355,7 +378,7 @@ public final class SplashScreen {
         double trackWidth = sceneW * PROGRESS_TRACK_WIDTH_TO_SCREEN_W_RATIO;
         double barGap = labelHeight * PROGRESS_BAR_GAP_RATIO;
 
-        loadingLabel.setFont(Font.font(labelHeight));
+        loadingLabel.setFont(new Font(loadingLabel.getFont().getName(), labelHeight));
 
         double blockLeftX = million_startX;
         double trackBottomY = sceneH * (1.0 - PROGRESS_BOTTOM_OFFSET_RATIO);
