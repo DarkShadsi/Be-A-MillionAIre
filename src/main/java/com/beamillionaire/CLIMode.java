@@ -82,7 +82,7 @@ public class CLIMode {
                     }
                 }
                 System.out.println();
-                System.out.println("F: 50:50   C: Clue   I: Inspect model   M: Menu   Q: Quit   W: Walk away");
+                System.out.println("F: 50:50   H: Clue  S: Second chance   I: Inspect model   M: Menu   Q: Quit   W: Walk away");
 
                 while (true) {
                     System.out.print("Your answer (A-D): ");
@@ -108,11 +108,19 @@ public class CLIMode {
                         }
                         continue;
                     }
-                    if (choice.equals("C")) {
+                    if (choice.equals("H")) {
                         if (gameRound.useHelp(GameRound.Help.CLUE)) {
                             System.out.println("Clue: " + gameRound.clue());
                         } else {
                             System.out.println("Clue is already used or unavailable.");
+                        }
+                        continue;
+                    }
+                    if (choice.equals("S")) {
+                        if (gameRound.useHelp(GameRound.Help.SECOND_CHANCE)) {
+                            System.out.println("Second chance is now active.");
+                        } else {
+                            System.out.println("Second chance is already used or unavailable.");
                         }
                         continue;
                     }
@@ -125,7 +133,7 @@ public class CLIMode {
                         continue;
                     }
                     if (gameRound.eliminatedOptions().contains(choice)) {
-                        System.out.println("That choice was removed by 50:50.");
+                        System.out.println("That choice has been removed.");
                         continue;
                     }
 
@@ -151,6 +159,10 @@ public class CLIMode {
                             System.out.printf(Locale.US, "GAME OVER. You received %,d credits.%n", gameRound.payout());
                             backToMenu = true;
                             break;
+                        case GameRound.Status.RETRY:
+                            answered--;
+                            System.out.println("Wrong answer. Second chance was active and saved you from losing. Select again.");
+                            continue;
 
                     }
                     System.out.printf("Score: %d / %d%n", gameRound.correctAnswers(), answered);
