@@ -16,12 +16,11 @@ import javafx.util.Duration;
 
 public final class MillionaireApplication extends Application {
     private AppService service;
-    private StartupState startup;
+    private record LoadedStartup(StartupState startup, AssetCatalog assets) {}
 
     @Override public void init() {
         service=new AppService(new CsvQuestionRepository(AppPaths.questionDataDirectory()),
             new SettingsStore(AppPaths.userDataDirectory()));
-        startup=service.load();
     }
 
     @Override public void start(Stage stage) {
@@ -45,24 +44,28 @@ public final class MillionaireApplication extends Application {
         Platform.runLater(() -> stage.setOpacity(1));
         resizeSplash.run();
 
-        Task<GamePresentation> loadTask=new Task<>() {
-            @Override protected GamePresentation call() throws Exception {
+        Task<LoadedStartup> loadTask=new Task<>() {
+            @Override protected LoadedStartup call() throws Exception {
+                var startup=service.load();
                 var assets=AssetCatalog.load();
-                return new GamePresentation(service,startup,assets,
-                    ()->stage.setFullScreen(!stage.isFullScreen()),Platform::exit);
+                return new LoadedStartup(startup,assets);
             }
         };
         loadTask.setOnSucceeded(event->{
-            GamePresentation game=loadTask.getValue();
-            splash.setOnReady(()->transitionToGame(stage,scene,transitionHost,splash,game));
-            splash.notifyLoadingComplete();
+            try {
+                var loaded=loadTask.getValue();
+                var game=new GamePresentation(service,loaded.startup(),loaded.assets(),
+                    ()->stage.setFullScreen(!stage.isFullScreen()),Platform::exit);
+                splash.setOnReady(()->transitionToGame(stage,scene,transitionHost,splash,game));
+                splash.notifyLoadingComplete();
+            }catch(Exception error){
+                startupFailed(splash,error);
+            }
         });
-        loadTask.setOnFailed(event->{
-            Throwable error=loadTask.getException();
-            System.err.println("Startup failed: "+(error!=null?error.getMessage():"unknown error"));
-            new Alert(Alert.AlertType.ERROR,"The game could not start: "+
-                (error!=null?error.getMessage():"unknown error")).showAndWait();
-            Platform.exit();
+        loadTask.setOnFailed(event->startupFailed(splash,loadTask.getException()));
+        stage.setOnCloseRequest(event->{
+            loadTask.cancel();
+            splash.stopAnimations();
         });
         Thread loaderThread=new Thread(loadTask,"asset-loader");
         loaderThread.setDaemon(true);
@@ -70,6 +73,7 @@ public final class MillionaireApplication extends Application {
     }
 
     private void transitionToGame(Stage stage,Scene scene,StackPane transitionHost,SplashScreen splash,GamePresentation game){
+        splash.stopAnimations();
         FullscreenSupport.install(stage,game::closeOverlay);
         stage.setOnCloseRequest(event->{event.consume();game.requestExit();});
 
@@ -82,6 +86,14 @@ public final class MillionaireApplication extends Application {
             game.root().requestFocus();
         });
         fadeIn.play();
+    }
+
+    private void startupFailed(SplashScreen splash,Throwable error){
+        splash.stopAnimations();
+        String message=error!=null?error.getMessage():"unknown error";
+        System.err.println("Startup failed: "+message);
+        new Alert(Alert.AlertType.ERROR,"The game could not start: "+message).showAndWait();
+        Platform.exit();
     }
 
     public static void main(String[] args){launch(args);}
