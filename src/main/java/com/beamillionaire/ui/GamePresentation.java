@@ -209,7 +209,9 @@ public final class GamePresentation implements PresentationActions {
     }
     void renderRound(){
         if(round.finished()){
-            results=RoundPresenter.results(round);router.refresh();show(Screen.RESULTS);
+            results=RoundPresenter.results(round);
+            router.refresh();
+            if(round.status()==GameRound.Status.WALKED_AWAY)show(Screen.RESULTS);
             if(!roundRecorded) {
                 roundRecorded=true;
                 try {
@@ -220,15 +222,22 @@ public final class GamePresentation implements PresentationActions {
         }else router.refreshCurrent();
     }
     @Override public void useHelp(GameplayViewState.Help help){
-        if(!acceptingGameplayInput()||gameplayState().helps().get(help)!=GameplayViewState.HelpState.AVAILABLE)return;
-        if(round==null||!round.useHelp(GameRound.Help.valueOf(help.name())))return;
+        if(!acceptingGameplayInput()||round==null)return;
+        if(help==GameplayViewState.Help.CLUE&&round.clueRevealed()){
+            openOverlay(Overlay.CLUE);
+            return;
+        }
+        if(gameplayState().helps().get(help)!=GameplayViewState.HelpState.AVAILABLE)return;
+        if(!round.useHelp(GameRound.Help.valueOf(help.name())))return;
         router.refreshCurrent();
         if(help==GameplayViewState.Help.CLUE)openOverlay(Overlay.CLUE);
     }
     @Override public void walkAway(){if(acceptingGameplayInput()&&gameplayState().walkAwayEnabled())openOverlay(Overlay.WALK_AWAY);}
     @Override public void continueGame(){
         if(!acceptingGameplayInput())return;
-        if(round!=null){round.nextQuestion();renderRound();}
+        if(round==null)return;
+        if(round.finished()){show(Screen.RESULTS);return;}
+        round.nextQuestion();renderRound();
     }
     @Override public void replay(){round=null;show(Screen.CATEGORIES);}
     @Override public void openOverlay(Overlay overlay){
@@ -260,7 +269,7 @@ public final class GamePresentation implements PresentationActions {
             String letter=event.getCode().name();
             if(Set.of("A","B","C","D").contains(letter)){selectAnswer(letter);event.consume();}
             else if(event.getCode()==KeyCode.ENTER&&gameplayState().lockEnabled()){lockAnswer();event.consume();}
-            else if(event.getCode()==KeyCode.ENTER&&round!=null&&round.status()==GameRound.Status.CORRECT){continueGame();event.consume();}
+            else if(event.getCode()==KeyCode.ENTER&&round!=null&&(round.status()==GameRound.Status.CORRECT||round.finished())){continueGame();event.consume();}
         }
     }
 }
