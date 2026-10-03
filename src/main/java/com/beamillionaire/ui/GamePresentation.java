@@ -1,24 +1,42 @@
 package com.beamillionaire.ui;
 
-import com.beamillionaire.application.*;
-import com.beamillionaire.domain.*;
-import com.beamillionaire.engine.GameRules;
+import com.beamillionaire.application.AppPreferences;
+import com.beamillionaire.application.AppService;
+import com.beamillionaire.application.StartupState;
+import com.beamillionaire.application.Theme;
+import com.beamillionaire.domain.Category;
+import com.beamillionaire.domain.Difficulty;
 import com.beamillionaire.engine.GameRound;
+import com.beamillionaire.engine.GameRules;
+import com.beamillionaire.storage.ScoreEntry;
+import com.beamillionaire.storage.ScoreStore;
 import com.beamillionaire.ui.assets.AssetCatalog;
-import com.beamillionaire.ui.design.*;
-import com.beamillionaire.ui.state.*;
+import com.beamillionaire.ui.design.DesignViewport;
+import com.beamillionaire.ui.design.GameButton;
+import com.beamillionaire.ui.design.OverlayHost;
+import com.beamillionaire.ui.design.ScreenRouter;
+import com.beamillionaire.ui.state.GameplayViewState;
+import com.beamillionaire.ui.state.PresentationActions;
+import com.beamillionaire.ui.state.ResultsViewState;
+import com.beamillionaire.ui.state.RoundPresenter;
 import javafx.geometry.Pos;
-import javafx.scene.*;
-import javafx.scene.control.*;
-import javafx.scene.input.*;
-import javafx.scene.layout.*;
+import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.control.ComboBoxBase;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextInputControl;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Rectangle;
-import java.io.*;
-import com.beamillionaire.storage.*;
+
+import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Consumer;
+
 import static com.beamillionaire.ui.design.ScreenRouter.Screen;
 
 /** Presentation coordinator: navigation and rendering, with engine decisions supplied as view state. */
@@ -35,6 +53,9 @@ public final class GamePresentation implements PresentationActions {
     final ScreenRouter router = new ScreenRouter(screens);
     GameRound round;
     ResultsViewState results;
+    final ScoreStore scoreStore;
+    String roundId;
+    boolean roundRecorded;
     Theme theme;
     boolean reduceMotion;
     static final Map<String,Category> CATEGORIES = new LinkedHashMap<>();
@@ -50,9 +71,10 @@ public final class GamePresentation implements PresentationActions {
     }
 
     public GamePresentation(AppService service, StartupState startup,
-                            AssetCatalog assets,
+                            AssetCatalog assets, ScoreStore scoreStore,
                             Runnable fullscreen, Runnable exit) {
         this.service=service; this.startup=startup; this.assets=assets;
+        this.scoreStore=scoreStore;
         this.fullscreen=fullscreen; this.exit=exit;
         this.theme=startup.preferences().theme();
         this.reduceMotion=startup.preferences().reduceMotion();
@@ -68,6 +90,7 @@ public final class GamePresentation implements PresentationActions {
         register(Screen.CATEGORIES,this::categories);
         register(Screen.GAMEPLAY,this::gameplay);
         register(Screen.MENU,this::menu);
+        register(Screen.RESULTS,this::results);
         root.addEventFilter(KeyEvent.KEY_PRESSED,this::keyPressed);
         root.setStyle("-fx-background-color: "+(theme==Theme.DARK?"#02060a":"#f4fafa")+";");
         show(Screen.HOME);
@@ -137,6 +160,7 @@ public final class GamePresentation implements PresentationActions {
                 .allMatch(d->startup.bank().pool(category,d).size()>=GameRules.QUESTIONS_PER_DIFFICULTY);
         if(ready){
             round=new GameRound(startup.bank(),category,new Random());
+            roundId=UUID.randomUUID().toString();roundRecorded=false;
             router.refresh();show(Screen.GAMEPLAY);return;
         }
         popup(category.displayName(),"This category is not ready yet. It needs five easy, five medium, and five hard questions.",
@@ -160,7 +184,7 @@ public final class GamePresentation implements PresentationActions {
         service.savePreferences(new AppPreferences(theme,reduceMotion))
                 .ifPresent(message->popup("Settings",message,"Close",this::closeOverlay,null,null));
     }
-
+    void results(Pane pane){ ResultsScreen.render(this,pane); }
 
     void popup(String title,String message,String primary,Runnable yes,String secondary,Runnable no){
         var pane=new Pane();pane.setPrefSize(1050,626);pane.setMaxSize(1050,626);
@@ -184,19 +208,36 @@ public final class GamePresentation implements PresentationActions {
         }
     }
     void renderRound(){
-        router.refreshCurrent();
-        if(round.finished())popup("Round complete",String.format(Locale.US,"Payout: %,d credits",round.payout()),"Choose a category",this::replay,null,null);
+        if(round.finished()){
+            results=RoundPresenter.results(round);
+            router.refresh();
+            if(round.status()==GameRound.Status.WALKED_AWAY)show(Screen.RESULTS);
+            if(!roundRecorded) {
+                roundRecorded=true;
+                try {
+                    scoreStore.append(new ScoreEntry(roundId,Instant.now().toString(),
+                            round.question().category().displayName(),round.status(),round.correctAnswers(),round.payout()));
+                } catch(IOException error) { popup("Score history",error.getMessage(),"Close",this::closeOverlay,null,null); }
+            }
+        }else router.refreshCurrent();
     }
     @Override public void useHelp(GameplayViewState.Help help){
-        if(!acceptingGameplayInput()||gameplayState().helps().get(help)!=GameplayViewState.HelpState.AVAILABLE)return;
-        if(round==null||!round.useHelp(GameRound.Help.valueOf(help.name())))return;
+        if(!acceptingGameplayInput()||round==null)return;
+        if(help==GameplayViewState.Help.CLUE&&round.clueRevealed()){
+            openOverlay(Overlay.CLUE);
+            return;
+        }
+        if(gameplayState().helps().get(help)!=GameplayViewState.HelpState.AVAILABLE)return;
+        if(!round.useHelp(GameRound.Help.valueOf(help.name())))return;
         router.refreshCurrent();
         if(help==GameplayViewState.Help.CLUE)openOverlay(Overlay.CLUE);
     }
     @Override public void walkAway(){if(acceptingGameplayInput()&&gameplayState().walkAwayEnabled())openOverlay(Overlay.WALK_AWAY);}
     @Override public void continueGame(){
         if(!acceptingGameplayInput())return;
-        if(round!=null){round.nextQuestion();renderRound();}
+        if(round==null)return;
+        if(round.finished()){show(Screen.RESULTS);return;}
+        round.nextQuestion();renderRound();
     }
     @Override public void replay(){round=null;show(Screen.CATEGORIES);}
     @Override public void openOverlay(Overlay overlay){
@@ -228,7 +269,7 @@ public final class GamePresentation implements PresentationActions {
             String letter=event.getCode().name();
             if(Set.of("A","B","C","D").contains(letter)){selectAnswer(letter);event.consume();}
             else if(event.getCode()==KeyCode.ENTER&&gameplayState().lockEnabled()){lockAnswer();event.consume();}
-            else if(event.getCode()==KeyCode.ENTER&&round!=null&&round.status()==GameRound.Status.CORRECT){continueGame();event.consume();}
+            else if(event.getCode()==KeyCode.ENTER&&round!=null&&(round.status()==GameRound.Status.CORRECT||round.finished())){continueGame();event.consume();}
         }
     }
 }

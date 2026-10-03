@@ -64,6 +64,7 @@ public final class GameButton extends Button {
     public void setCaption(String text, javafx.scene.text.Font font, javafx.scene.paint.Color color) {
         var label = new javafx.scene.control.Label(text);
         label.setFont(font); label.setTextFill(color); label.setMouseTransparent(true);
+        label.setStyle("-fx-opacity: 1; -fx-text-fill: #"+color.toString().substring(2,8)+";");
         setGraphic(new javafx.scene.layout.StackPane(artwork, label));
     }
     @Override public boolean contains(double x, double y) {
@@ -75,7 +76,9 @@ public final class GameButton extends Button {
     }
 
     private void updateFeedback() {
-        setOpacity(isDisabled() && feedback == Feedback.NORMAL ? 0.45 : 1);
+        double opacity=isDisabled() && feedback == Feedback.NORMAL ? 0.45 : 1;
+        setStyle("-fx-background-color: transparent; -fx-border-width: 0; -fx-opacity: "+opacity+";");
+        setOpacity(opacity);
         interaction.stop();
         if(motionEnabled&&!isDisabled()&&getScene()!=null){
             interaction.setToY(isPressed()?2:isHover()?-1:0);

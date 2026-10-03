@@ -15,6 +15,7 @@ public final class RoundPresenter {
             helps.put(help, round.usedHelps().contains(engineHelp) ? HelpState.USED
                     : round.helpAvailable(engineHelp) ? HelpState.AVAILABLE : HelpState.DISABLED);
             if (help == Help.SECOND_CHANCE && round.secondChanceActive()) helps.put(help, HelpState.ACTIVE);
+            if (help == Help.CLUE && round.clueRevealed()) helps.put(help, HelpState.ACTIVE);
         }
         var feedback = new HashMap<String, Feedback>();
         if (round.firstWrongAnswer() != null) feedback.put(round.firstWrongAnswer(), Feedback.INCORRECT);

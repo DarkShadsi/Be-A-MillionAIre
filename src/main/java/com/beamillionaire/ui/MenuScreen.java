@@ -10,7 +10,7 @@ final class MenuScreen {
     static void render(GamePresentation game, Pane pane) {
         game.background(pane,"home");game.panel(pane,460,227,1000);
         game.text(pane,"MENU",545,251,830,58,46,true);
-        game.text(pane,"Choose a category. Select A–D, then Lock Answer.\nCheckpoints: Q4 / 1,000 • Q9 / 30,000 • Q12 / 100,000\nEach help once per game; combine helps on a question.\nSecond Chance: one retry, consumed on activation.\nWalk away before locking. F11: fullscreen • Esc: close popup",
+        game.text(pane,"Choose a category. Select A–D, then Lock Answer.\nCheckpoints: Q4 / 1,000 • Q9 / 30,000 • Q12 / 100,000\nEach help once per game; one help per question.\nSecond Chance: one retry, consumed on activation.\nWalk away before locking. F11: fullscreen • Esc: close popup",
                 545,314,830,180,25,false);
         String themeText=game.theme==Theme.DARK?"Light theme":"Dark theme";
         var theme=game.action(pane,themeText,650,520,240,game::toggleTheme);

@@ -20,6 +20,7 @@ public final class GameRound {
     private String firstWrongAnswer;
     private boolean secondChanceActive;
     private boolean clueVisible;
+    private boolean helpUsedThisQuestion;
 
     public GameRound(QuestionBank bank, Category category, Random random) {
         this.questions = new QuestionSelector().select(bank, category, random);
@@ -37,6 +38,7 @@ public final class GameRound {
     public Set<String> eliminatedOptions() { return Set.copyOf(eliminated); }
     public Set<Help> usedHelps() { return Set.copyOf(usedHelps); }
     public boolean secondChanceActive() { return secondChanceActive; }
+    public boolean clueRevealed() { return clueVisible; }
     public String clue() { return clueVisible ? question().clue() : ""; }
     public boolean selectionEnabled() { return status == Status.ANSWERING || status == Status.RETRY; }
     public boolean lockEnabled() { return selectionEnabled() && selected != null; }
@@ -72,15 +74,15 @@ public final class GameRound {
 
     public boolean helpAvailable(Help help) {
         Objects.requireNonNull(help);
-        // Different unused helps can be combined. Second Chance must be
-        // activated before the first lock and is consumed immediately.
-        return selectionEnabled() && !usedHelps.contains(help)
+        // Each help is available once per game, with one activation per question.
+        return selectionEnabled() && !helpUsedThisQuestion && !usedHelps.contains(help)
             && (help != Help.SECOND_CHANCE || status == Status.ANSWERING);
     }
 
     public boolean useHelp(Help help) {
         if (!helpAvailable(help)) return false;
         usedHelps.add(help);
+        helpUsedThisQuestion = true;
         switch (help) {
             case CLUE -> clueVisible = true;
             case SECOND_CHANCE -> secondChanceActive = true;
@@ -88,8 +90,7 @@ public final class GameRound {
                 var wrong = new ArrayList<>(question().choices().stream()
                     .map(Choice::id).filter(id -> !id.equals(question().correctChoiceId())).toList());
                 Collections.shuffle(wrong, random);
-                // During a retry one wrong option is already disabled. Complete
-                // the elimination to two wrong options without removing the key.
+                // Remove two wrong options without removing the correct answer.
                 for (String id : wrong) {
                     if (eliminated.size() >= 2) break;
                     eliminated.add(id);
@@ -107,6 +108,7 @@ public final class GameRound {
         firstWrongAnswer = null;
         secondChanceActive = false;
         clueVisible = false;
+        helpUsedThisQuestion = false;
         eliminated.clear();
         status = Status.ANSWERING;
     }

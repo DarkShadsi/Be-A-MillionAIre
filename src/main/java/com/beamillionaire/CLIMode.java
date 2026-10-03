@@ -82,6 +82,7 @@ public class CLIMode {
                     }
                 }
                 System.out.println();
+                System.out.println("One help per question. H reopens an unlocked clue.");
                 System.out.println("F: 50:50   H: Clue  S: Second chance   I: Inspect model   M: Menu   Q: Quit   W: Walk away");
 
                 while (true) {
@@ -104,15 +105,15 @@ public class CLIMode {
                                 }
                             }
                         } else {
-                            System.out.println("50:50 is already used or unavailable.");
+                            System.out.println("50:50 unavailable: each help is once per game, with one help per question.");
                         }
                         continue;
                     }
                     if (choice.equals("H")) {
-                        if (gameRound.useHelp(GameRound.Help.CLUE)) {
+                        if (gameRound.clueRevealed() || gameRound.useHelp(GameRound.Help.CLUE)) {
                             System.out.println("Clue: " + gameRound.clue());
                         } else {
-                            System.out.println("Clue is already used or unavailable.");
+                            System.out.println("Clue unavailable: each help is once per game, with one help per question.");
                         }
                         continue;
                     }
@@ -120,7 +121,7 @@ public class CLIMode {
                         if (gameRound.useHelp(GameRound.Help.SECOND_CHANCE)) {
                             System.out.println("Second chance is now active.");
                         } else {
-                            System.out.println("Second chance is already used or unavailable.");
+                            System.out.println("Second chance unavailable: each help is once per game, with one help per question.");
                         }
                         continue;
                     }
@@ -129,7 +130,7 @@ public class CLIMode {
                         continue;
                     }
                     if (!choice.matches("[A-D]")) {
-                        System.out.println("Please enter A-D, F, C, I, M, Q or W.");
+                        System.out.println("Please enter A-D, F, H, S, I, M, Q or W.");
                         continue;
                     }
                     if (gameRound.eliminatedOptions().contains(choice)) {
