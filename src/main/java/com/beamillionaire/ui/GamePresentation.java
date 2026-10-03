@@ -1,42 +1,24 @@
 package com.beamillionaire.ui;
 
-import com.beamillionaire.application.AppPreferences;
-import com.beamillionaire.application.AppService;
-import com.beamillionaire.application.StartupState;
-import com.beamillionaire.application.Theme;
-import com.beamillionaire.domain.Category;
-import com.beamillionaire.domain.Difficulty;
-import com.beamillionaire.engine.GameRound;
+import com.beamillionaire.application.*;
+import com.beamillionaire.domain.*;
 import com.beamillionaire.engine.GameRules;
-import com.beamillionaire.storage.ScoreEntry;
-import com.beamillionaire.storage.ScoreStore;
+import com.beamillionaire.engine.GameRound;
 import com.beamillionaire.ui.assets.AssetCatalog;
-import com.beamillionaire.ui.design.DesignViewport;
-import com.beamillionaire.ui.design.GameButton;
-import com.beamillionaire.ui.design.OverlayHost;
-import com.beamillionaire.ui.design.ScreenRouter;
-import com.beamillionaire.ui.state.GameplayViewState;
-import com.beamillionaire.ui.state.PresentationActions;
-import com.beamillionaire.ui.state.ResultsViewState;
-import com.beamillionaire.ui.state.RoundPresenter;
+import com.beamillionaire.ui.design.*;
+import com.beamillionaire.ui.state.*;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
-import javafx.scene.Parent;
-import javafx.scene.control.ComboBoxBase;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextInputControl;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.Pane;
-import javafx.scene.layout.StackPane;
+import javafx.scene.*;
+import javafx.scene.control.*;
+import javafx.scene.input.*;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-
-import java.io.IOException;
+import javafx.scene.shape.Rectangle;
+import java.io.*;
+import com.beamillionaire.storage.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Consumer;
-
 import static com.beamillionaire.ui.design.ScreenRouter.Screen;
 
 /** Presentation coordinator: navigation and rendering, with engine decisions supplied as view state. */
@@ -91,6 +73,7 @@ public final class GamePresentation implements PresentationActions {
         register(Screen.GAMEPLAY,this::gameplay);
         register(Screen.MENU,this::menu);
         register(Screen.RESULTS,this::results);
+        register(Screen.SCORES,this::scores);
         root.addEventFilter(KeyEvent.KEY_PRESSED,this::keyPressed);
         root.setStyle("-fx-background-color: "+(theme==Theme.DARK?"#02060a":"#f4fafa")+";");
         show(Screen.HOME);
@@ -185,7 +168,7 @@ public final class GamePresentation implements PresentationActions {
                 .ifPresent(message->popup("Settings",message,"Close",this::closeOverlay,null,null));
     }
     void results(Pane pane){ ResultsScreen.render(this,pane); }
-
+    void scores(Pane pane){ ScoresScreen.render(this,pane); }
     void popup(String title,String message,String primary,Runnable yes,String secondary,Runnable no){
         var pane=new Pane();pane.setPrefSize(1050,626);pane.setMaxSize(1050,626);
         panel(pane,0,0,1050);text(pane,title,85,65,880,70,44,true);
@@ -209,9 +192,7 @@ public final class GamePresentation implements PresentationActions {
     }
     void renderRound(){
         if(round.finished()){
-            results=RoundPresenter.results(round);
-            router.refresh();
-            if(round.status()==GameRound.Status.WALKED_AWAY)show(Screen.RESULTS);
+            results=RoundPresenter.results(round);router.refresh();show(Screen.RESULTS);
             if(!roundRecorded) {
                 roundRecorded=true;
                 try {
@@ -222,22 +203,15 @@ public final class GamePresentation implements PresentationActions {
         }else router.refreshCurrent();
     }
     @Override public void useHelp(GameplayViewState.Help help){
-        if(!acceptingGameplayInput()||round==null)return;
-        if(help==GameplayViewState.Help.CLUE&&round.clueRevealed()){
-            openOverlay(Overlay.CLUE);
-            return;
-        }
-        if(gameplayState().helps().get(help)!=GameplayViewState.HelpState.AVAILABLE)return;
-        if(!round.useHelp(GameRound.Help.valueOf(help.name())))return;
+        if(!acceptingGameplayInput()||gameplayState().helps().get(help)!=GameplayViewState.HelpState.AVAILABLE)return;
+        if(round==null||!round.useHelp(GameRound.Help.valueOf(help.name())))return;
         router.refreshCurrent();
         if(help==GameplayViewState.Help.CLUE)openOverlay(Overlay.CLUE);
     }
     @Override public void walkAway(){if(acceptingGameplayInput()&&gameplayState().walkAwayEnabled())openOverlay(Overlay.WALK_AWAY);}
     @Override public void continueGame(){
         if(!acceptingGameplayInput())return;
-        if(round==null)return;
-        if(round.finished()){show(Screen.RESULTS);return;}
-        round.nextQuestion();renderRound();
+        if(round!=null){round.nextQuestion();renderRound();}
     }
     @Override public void replay(){round=null;show(Screen.CATEGORIES);}
     @Override public void openOverlay(Overlay overlay){
@@ -269,7 +243,7 @@ public final class GamePresentation implements PresentationActions {
             String letter=event.getCode().name();
             if(Set.of("A","B","C","D").contains(letter)){selectAnswer(letter);event.consume();}
             else if(event.getCode()==KeyCode.ENTER&&gameplayState().lockEnabled()){lockAnswer();event.consume();}
-            else if(event.getCode()==KeyCode.ENTER&&round!=null&&(round.status()==GameRound.Status.CORRECT||round.finished())){continueGame();event.consume();}
+            else if(event.getCode()==KeyCode.ENTER&&round!=null&&round.status()==GameRound.Status.CORRECT){continueGame();event.consume();}
         }
     }
 }

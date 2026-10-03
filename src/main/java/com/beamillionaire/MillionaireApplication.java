@@ -54,7 +54,8 @@ public final class MillionaireApplication extends Application {
         loadTask.setOnSucceeded(event->{
             try {
                 var loaded=loadTask.getValue();
-                var game=new GamePresentation(service,loaded.startup(),loaded.assets(), new ScoreStore(AppPaths.userDataDirectory()),
+                var game=new GamePresentation(service,loaded.startup(),loaded.assets(),
+                    new ScoreStore(AppPaths.userDataDirectory()),
                     ()->stage.setFullScreen(!stage.isFullScreen()),Platform::exit);
                 splash.setOnReady(()->transitionToGame(stage,scene,transitionHost,splash,game));
                 splash.notifyLoadingComplete();
