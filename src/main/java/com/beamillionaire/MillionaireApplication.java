@@ -44,7 +44,7 @@ public final class MillionaireApplication extends Application {
             Scene scene;
             if(smoke){scene=new Scene(new Pane(),1280,720);stage.setOpacity(0);}
             else {
-                splash=new SplashScreen();
+                splash=new SplashScreen(stage,!initialPreferences.reduceMotion());
                 scene=new Scene(splash.root(),1280,720);
             }
             stage.setScene(scene);
@@ -93,7 +93,7 @@ public final class MillionaireApplication extends Application {
     private void revealHome(Scene scene){
         if(closed||splash==null)return;
         if(initialPreferences.reduceMotion()){
-            splash.stopAnimations();splash=null;scene.setRoot(game.root());return;
+            splash.close();splash=null;scene.setRoot(game.root());return;
         }
         game.root().setOpacity(0);game.root().setDisable(true);
         scene.setRoot(new Pane());
@@ -103,7 +103,7 @@ public final class MillionaireApplication extends Application {
         startupFade=new ParallelTransition(fadeSplash,fadeHome);startupFade.setInterpolator(Interpolator.EASE_BOTH);
         startupFade.setOnFinished(event->{
             if(closed)return;
-            splash.stopAnimations();splash=null;composition.getChildren().clear();
+            splash.close();splash=null;composition.getChildren().clear();
             game.root().setDisable(false);game.root().setOpacity(1);scene.setRoot(game.root());
         });startupFade.play();syncFade();
     }
@@ -125,7 +125,7 @@ public final class MillionaireApplication extends Application {
         if(loader!=null)loader.cancel();
         if(startupFade!=null){startupFade.stop();startupFade.setOnFinished(null);}
         if(smokePause!=null)smokePause.stop();
-        if(splash!=null)splash.stopAnimations();
+        if(splash!=null)splash.close();
         if(game!=null)game.close();
         if(audio!=null)audio.close();
         if(window!=null){

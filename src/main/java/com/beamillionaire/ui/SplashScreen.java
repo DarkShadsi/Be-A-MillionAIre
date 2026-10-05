@@ -1,7 +1,12 @@
 package com.beamillionaire.ui;
 
+import com.beamillionaire.ui.design.DesignViewport;
+import com.beamillionaire.ui.design.AiLogoGeometry;
+import com.beamillionaire.ui.design.MotionScope;
+import com.beamillionaire.ui.design.UiEffects;
+import com.beamillionaire.ui.design.ThinkingIndicator;
 import javafx.animation.*;
-import javafx.geometry.VPos;
+import javafx.beans.InvalidationListener;
 import javafx.scene.Group;
 import javafx.scene.Parent;
 import javafx.scene.image.Image;
@@ -15,13 +20,15 @@ import javafx.scene.shape.FillRule;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Font;
-import javafx.scene.text.Text;
 import javafx.scene.transform.Scale;
+import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.InputStream;
+import java.io.IOException;
 
-public final class SplashScreen {
+/** Milly's branded intro, fitted to the design canvas and gated by actual startup readiness. */
+public final class SplashScreen implements AutoCloseable {
 
     private static final double LOGO_BASE_W = 500;
     private static final double LOGO_BASE_H = 320;
@@ -41,7 +48,6 @@ public final class SplashScreen {
     private static final double PROGRESS_TRACK_WIDTH_TO_SCREEN_W_RATIO = 0.70;
     private static final double PROGRESS_BOTTOM_OFFSET_RATIO = 0.10;
 
-    private static final Color PROGRESS_LABEL_COLOR = Color.web("#9fb7c7");
     private static final Color PROGRESS_TRACK_COLOR = Color.web("#13202b");
     private static final Color PROGRESS_FILL_COLOR = Color.web("#00a3e0");
 
@@ -58,22 +64,30 @@ public final class SplashScreen {
     private static final String RE_IMAGE_PATH = ASSETS_DIR + "re.png";
     private static final String HUD_IMAGE_PATH = ASSETS_DIR + "hud.png";
 
-    private final Pane root = new Pane();
+    private final DesignViewport viewport = new DesignViewport(1920, 1080);
+    private final Pane root = viewport.canvas();
+    private final Stage stage;
+    private final boolean motionEnabled;
+    private final MotionScope introMotion = new MotionScope();
+    private final MotionScope hudMotion = new MotionScope();
+    private final MotionScope loadingMotion = new MotionScope();
+    private final InvalidationListener listener = ignored -> sync();
 
     private SVGPath letterA, letterI, letterASolid, letterISolid;
     private Group logoGroup;
     private Scale logoScaleT;
     private ImageView beView, aView, millionView, reView, hudView;
     private Group textGroup;
-    private Text loadingLabel;
+    private ThinkingIndicator loadingCaption;
     private Rectangle progressTrack, progressFill;
     private Group progressGroup;
 
-    private boolean introDone, loadingDone;
-    private Transition shimmer, revealTrigger, reveal, introHold, spinHud, loadingIndicator;
+    private boolean introDone, loadingDone, readyDelivered, closed;
     private Runnable onReady;
 
-    public SplashScreen() {
+    public SplashScreen(Stage stage, boolean motionEnabled) throws IOException {
+        this.stage = stage;
+        this.motionEnabled = motionEnabled;
         buildLogo();
         buildText();
         buildHud();
@@ -81,82 +95,100 @@ public final class SplashScreen {
 
         root.getChildren().addAll(hudView, textGroup, logoGroup, progressGroup);
         root.setStyle("-fx-background-color: #070c12;");
-
-        shimmer = buildShimmer();
-        revealTrigger = new PauseTransition(Duration.seconds(3.1));
-        revealTrigger.setOnFinished(event -> revealRestOfScene());
-        shimmer.play();
-        revealTrigger.play();
+        viewport.setStyle("-fx-background-color: #070c12;");
+        root.setClip(new Rectangle(1920, 1080));
+        root.setMouseTransparent(true);
+        layout(1920, 1080);
+        if (motionEnabled) {
+            introMotion.register(buildShimmer(), () -> {});
+            introMotion.register(buildIntro(), () -> {});
+            UiEffects.spin(hudMotion, hudView, 20).setDelay(Duration.seconds(3.1));
+            loadingMotion.register(buildLoadingIndicator(), () -> {});
+        } else {
+            letterA.setOpacity(0); letterI.setOpacity(0);
+            letterASolid.setOpacity(1); letterISolid.setOpacity(1);
+            textGroup.setOpacity(1); hudView.setOpacity(1); progressGroup.setOpacity(1);
+            progressFill.setWidth(progressTrack.getWidth() * .25);
+            introDone = true;
+        }
+        viewport.sceneProperty().addListener(listener);
+        viewport.visibleProperty().addListener(listener);
+        stage.showingProperty().addListener(listener);
+        stage.iconifiedProperty().addListener(listener);
+        stage.sceneProperty().addListener(listener);
+        sync();
     }
 
-    public Parent root() { return root; }
-
-    public void resize(double sceneW, double sceneH) { layout(sceneW, sceneH); }
+    public Parent root() { return viewport; }
+    public boolean motionRunning() {
+        return introMotion.motionRunning() || hudMotion.motionRunning() || loadingMotion.motionRunning()
+                || loadingCaption.motionRunning();
+    }
 
     public void setOnReady(Runnable onReady) {
+        if (closed || readyDelivered) return;
         this.onReady = onReady;
         checkReady();
     }
 
     public void notifyLoadingComplete() {
+        if (closed || loadingDone) return;
         loadingDone = true;
+        // Milly's indeterminate segment keeps bouncing through the remaining intro and dismissal.
+        if (!motionEnabled) {
+            progressFill.setX(progressTrack.getX());
+            progressFill.setWidth(progressTrack.getWidth());
+        }
         checkReady();
     }
 
     private void checkReady() {
-        if (onReady != null && introDone && loadingDone) {
+        if (!closed && !readyDelivered && visible() && onReady != null && introDone && loadingDone) {
+            readyDelivered = true;
+            loadingCaption.finish();
             Runnable callback = onReady;
             onReady = null;
             callback.run();
         }
     }
 
-    public void stopAnimations() {
-        for (Animation animation : new Animation[]{shimmer, revealTrigger, reveal, introHold, spinHud, loadingIndicator}) {
-            if (animation != null) animation.stop();
+    private boolean visible() {
+        return viewport.getScene() != null && viewport.getScene() == stage.getScene()
+                && viewport.isVisible() && stage.isShowing() && !stage.isIconified();
+    }
+    private void sync() {
+        if (closed) return;
+        loadingCaption.setActive(visible());
+        if (visible()) {
+            if (motionEnabled) {
+                introMotion.resume(); hudMotion.resume(); loadingMotion.resume();
+            }
+            checkReady();
+        } else {
+            introMotion.pause(); hudMotion.pause(); loadingMotion.pause();
         }
+    }
+    @Override public void close() {
+        if (closed) return;
+        closed = true; onReady = null;
+        introMotion.dispose(); hudMotion.dispose(); loadingMotion.dispose();
+        loadingCaption.close();
+        viewport.sceneProperty().removeListener(listener);
+        viewport.visibleProperty().removeListener(listener);
+        stage.showingProperty().removeListener(listener);
+        stage.iconifiedProperty().removeListener(listener);
+        stage.sceneProperty().removeListener(listener);
     }
 
     private void buildLogo() {
-        letterA = new SVGPath();
-        letterA.setFillRule(FillRule.NON_ZERO);
-        letterA.setContent(
-            "M 36.34 95.65 C 16.54 148.35 0.14 191.75 0.04 192.25 " +
-                "C -0.16 192.65 12.14 192.95 27.34 192.85 L 55.04 192.55 L 63.44 169.65 " +
-                "C 68.04 157.05 72.04 146.55 72.34 146.25 C 72.64 145.95 72.84 147.25 72.84 149.25 " +
-                "C 72.84 154.05 75.44 162.45 79.14 169.35 C 84.04 178.65 92.54 185.05 106.84 190.35 " +
-                "C 111.74 192.15 115.34 192.45 139.64 192.85 C 154.54 193.05 166.84 192.85 166.74 192.35 " +
-                "C 166.74 191.95 162.34 181.15 156.94 168.55 L 147.24 145.55 L 110.04 145.25 " +
-                "C 89.54 145.15 72.84 144.65 72.84 144.25 C 72.84 143.85 74.74 138.35 77.14 132.05 " +
-                "C 80.94 121.75 81.64 120.55 83.94 120.25 C 86.44 119.95 86.74 120.55 90.44 131.45 " +
-                "L 94.34 143.05 L 120.04 143.05 C 134.24 143.05 145.84 142.65 145.84 142.25 " +
-                "C 145.84 141.75 135.14 109.75 121.94 70.95 L 98.04 0.55 L 85.24 0.25 L 72.34 -0.05 " +
-                "L 36.34 95.65 Z " +
-                "M 111.54 71.55 C 122.64 104.55 131.84 131.85 131.84 132.35 " +
-                "C 131.84 132.75 125.04 132.95 116.74 132.85 L 101.64 132.55 L 97.54 121.25 L 93.44 110.05 " +
-                "L 83.84 110.05 L 74.34 110.05 L 61.24 145.85 L 48.24 181.55 L 31.44 181.85 " +
-                "C 15.74 182.05 14.64 181.95 15.04 180.35 C 15.34 179.35 29.64 141.45 46.74 96.05 " +
-                "C 63.84 50.65 78.14 12.95 78.34 12.25 C 78.64 11.35 80.64 11.05 84.94 11.25 " +
-                "L 91.14 11.55 L 111.54 71.55 Z " +
-                "M 142.84 161.25 C 144.14 164.15 146.64 170.05 148.44 174.35 L 151.84 182.25 " +
-                "L 131.64 181.85 C 111.94 181.55 111.14 181.45 105.84 178.85 " +
-                "C 98.14 175.05 93.14 170.65 88.74 163.75 C 86.54 160.45 84.84 157.35 84.84 156.85 " +
-                "C 84.84 156.45 97.34 156.05 112.74 156.05 L 140.64 156.05 L 142.84 161.25 Z"
-        );
+        letterA = AiLogoGeometry.letterA();
 
-        letterI = new SVGPath();
-        letterI.setFillRule(FillRule.NON_ZERO);
-        letterI.setContent(
-            "M 196.54 14.85 L 193.84 17.65 L 193.84 109.25 L 193.84 200.95 L 196.44 202.95 " +
-                "C 198.94 204.95 200.34 205.05 221.54 205.05 C 242.64 205.05 244.24 204.95 246.94 202.95 " +
-                "L 249.84 200.95 L 249.84 109.25 L 249.84 17.65 L 247.14 14.85 L 244.44 12.05 " +
-                "L 221.84 12.05 L 199.24 12.05 L 196.54 14.85 Z " +
-                "M 239.64 108.25 L 239.84 194.05 L 221.84 194.05 L 203.84 194.05 L 203.84 108.05 " +
-                "L 203.84 22.05 L 221.64 22.25 L 239.34 22.55 L 239.64 108.25 Z"
-        );
+        letterI = AiLogoGeometry.letterI();
 
         letterA.setStroke(null);
         letterI.setStroke(null);
+        letterA.setFill(Color.TRANSPARENT);
+        letterI.setFill(Color.TRANSPARENT);
 
         letterASolid = new SVGPath();
         letterASolid.setFillRule(FillRule.NON_ZERO);
@@ -173,55 +205,57 @@ public final class SplashScreen {
         letterISolid.setOpacity(0);
 
         logoGroup = new Group(letterA, letterI, letterASolid, letterISolid);
+        logoGroup.setId("splash-logo");
         logoScaleT = new Scale(1, 1, 0, 0);
         logoGroup.getTransforms().add(logoScaleT);
     }
 
-    private void buildText() {
+    private void buildText() throws IOException {
         beView = loadImageView(BE_IMAGE_PATH);
         aView = loadImageView(A_IMAGE_PATH);
         millionView = loadImageView(MILLION_IMAGE_PATH);
         reView = loadImageView(RE_IMAGE_PATH);
         textGroup = new Group(beView, aView, millionView, reView);
+        textGroup.setId("splash-title");
         textGroup.setOpacity(0);
     }
 
-    private void buildHud() {
+    private void buildHud() throws IOException {
         hudView = loadImageView(HUD_IMAGE_PATH);
+        hudView.setId("splash-hud");
         hudView.setOpacity(0);
     }
 
-    private void buildProgressBar() {
-        loadingLabel = new Text("Loading...");
-        loadingLabel.setFill(PROGRESS_LABEL_COLOR);
-        loadingLabel.setTextOrigin(VPos.TOP);
+    private void buildProgressBar() throws IOException {
         try (InputStream stream = SplashScreen.class.getResourceAsStream("/ui/assets/fonts/body.ttf")) {
-            Font font = stream == null ? null : Font.loadFont(stream, 24);
-            if (font != null) loadingLabel.setFont(font);
-        } catch (java.io.IOException error) {
-            loadingLabel.setFont(Font.getDefault());
+            if (stream == null) throw new IOException("Missing splash font.");
+            Font font = Font.loadFont(stream, 24);
+            if (font == null) throw new IOException("Splash font could not load.");
+            loadingCaption=new ThinkingIndicator(font,motionEnabled,Duration.seconds(3.1));
         }
 
         progressTrack = new Rectangle();
+        progressTrack.setId("splash-progress-track");
         progressTrack.setFill(PROGRESS_TRACK_COLOR);
 
         progressFill = new Rectangle();
+        progressFill.setId("splash-progress-fill");
         progressFill.setFill(PROGRESS_FILL_COLOR);
         progressFill.setWidth(0);
 
-        progressGroup = new Group(progressTrack, progressFill, loadingLabel);
+        progressGroup = new Group(progressTrack, progressFill, loadingCaption);
         progressGroup.setOpacity(0);
     }
 
-    private ImageView loadImageView(String classpathPath) {
-        ImageView view;
+    private ImageView loadImageView(String classpathPath) throws IOException {
         try (InputStream stream = SplashScreen.class.getResourceAsStream(classpathPath)) {
-            view = stream != null ? new ImageView(new Image(stream)) : new ImageView();
-        } catch (Exception e) {
-            view = new ImageView();
+            if (stream == null) throw new IOException("Missing splash artwork: " + classpathPath);
+            var image = new Image(stream);
+            if (image.isError()) throw new IOException("Splash artwork could not load: " + classpathPath, image.getException());
+            var view = new ImageView(image);
+            view.setPreserveRatio(true);
+            return view;
         }
-        view.setPreserveRatio(true);
-        return view;
     }
 
     private Transition buildShimmer() {
@@ -261,7 +295,7 @@ public final class SplashScreen {
         };
     }
 
-    private void revealRestOfScene() {
+    private SequentialTransition buildIntro() {
         Duration fadeDuration = Duration.seconds(REVEAL_FADE_SECONDS);
 
         FadeTransition fadeShimmerAOut = new FadeTransition(fadeDuration, letterA);
@@ -280,32 +314,28 @@ public final class SplashScreen {
         FadeTransition fadeProgress = new FadeTransition(fadeDuration, progressGroup);
         fadeProgress.setToValue(1);
 
-        reveal = new ParallelTransition(
+        var reveal = new ParallelTransition(
             fadeShimmerAOut, fadeShimmerIOut, fadeSolidAIn, fadeSolidIIn,
             fadeText, fadeHud, fadeProgress
         );
         reveal.setInterpolator(Interpolator.EASE_BOTH);
-        introHold = new PauseTransition(Duration.seconds(REVEALED_HOLD_SECONDS));
-        introHold.setOnFinished(event -> {
+        var intro = new SequentialTransition(new PauseTransition(Duration.seconds(3.1)),
+                reveal, new PauseTransition(Duration.seconds(REVEALED_HOLD_SECONDS)));
+        intro.setOnFinished(event -> {
             introDone = true;
             checkReady();
         });
-        reveal.setOnFinished(event -> introHold.play());
-        reveal.play();
+        return intro;
+    }
 
-        var hudRotation = new RotateTransition(Duration.seconds(20), hudView);
-        hudRotation.setByAngle(360);
-        spinHud = hudRotation;
-        spinHud.setCycleCount(Animation.INDEFINITE);
-        spinHud.setInterpolator(Interpolator.LINEAR);
-        spinHud.play();
-
-        loadingIndicator = new Transition() {
+    private Transition buildLoadingIndicator() {
+        return new Transition() {
             {
                 setCycleDuration(Duration.seconds(1.2));
                 setCycleCount(Animation.INDEFINITE);
                 setAutoReverse(true);
                 setInterpolator(Interpolator.EASE_BOTH);
+                setDelay(Duration.seconds(3.1));
             }
 
             @Override protected void interpolate(double fraction) {
@@ -315,7 +345,6 @@ public final class SplashScreen {
                 progressFill.setX(progressTrack.getX() + fraction * (width - segmentWidth));
             }
         };
-        loadingIndicator.play();
     }
 
     private void layout(double sceneW, double sceneH) {
@@ -378,15 +407,14 @@ public final class SplashScreen {
         double trackWidth = sceneW * PROGRESS_TRACK_WIDTH_TO_SCREEN_W_RATIO;
         double barGap = labelHeight * PROGRESS_BAR_GAP_RATIO;
 
-        loadingLabel.setFont(new Font(loadingLabel.getFont().getName(), labelHeight));
+        loadingCaption.setFontSize(labelHeight);
 
         double blockLeftX = million_startX;
         double trackBottomY = sceneH * (1.0 - PROGRESS_BOTTOM_OFFSET_RATIO);
         double trackY = trackBottomY - trackHeight;
         double labelY = trackY - barGap - labelHeight;
 
-        loadingLabel.setLayoutX(blockLeftX);
-        loadingLabel.setLayoutY(labelY);
+        loadingCaption.resizeRelocate(blockLeftX,labelY,trackWidth,labelHeight*1.3);
 
         progressTrack.setX(blockLeftX);
         progressTrack.setY(trackY);
