@@ -203,8 +203,13 @@ public final class GamePresentation implements PresentationActions {
         }else router.refreshCurrent();
     }
     @Override public void useHelp(GameplayViewState.Help help){
-        if(!acceptingGameplayInput()||gameplayState().helps().get(help)!=GameplayViewState.HelpState.AVAILABLE)return;
-        if(round==null||!round.useHelp(GameRound.Help.valueOf(help.name())))return;
+        if(!acceptingGameplayInput()||round==null)return;
+        if(help==GameplayViewState.Help.CLUE&&round.clueRevealed()){
+            openOverlay(Overlay.CLUE);
+            return;
+        }
+        if(gameplayState().helps().get(help)!=GameplayViewState.HelpState.AVAILABLE)return;
+        if(!round.useHelp(GameRound.Help.valueOf(help.name())))return;
         router.refreshCurrent();
         if(help==GameplayViewState.Help.CLUE)openOverlay(Overlay.CLUE);
     }
