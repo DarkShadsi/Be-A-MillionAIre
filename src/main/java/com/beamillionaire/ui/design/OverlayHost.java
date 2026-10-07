@@ -13,6 +13,8 @@ public final class OverlayHost extends StackPane {
     private final Node content;
     private Node previousFocus;
     private boolean previouslyDisabled;
+    private boolean motionAvailable;
+    private boolean motionEnabled;
 
     public OverlayHost(Node content) {
         this.content = content;
@@ -27,7 +29,7 @@ public final class OverlayHost extends StackPane {
                 for (Node node : getChildren()) collectFocusable(node, targets);
                 if (targets.isEmpty()) requestFocus();
                 else {
-                    int index = targets.indexOf(getScene().getFocusOwner());
+                    int index = targets.indexOf(getScene()==null?null:getScene().getFocusOwner());
                     int next = index < 0 ? (event.isShiftDown() ? targets.size() - 1 : 0)
                             : Math.floorMod(index + (event.isShiftDown() ? -1 : 1), targets.size());
                     targets.get(next).requestFocus();
@@ -43,9 +45,11 @@ public final class OverlayHost extends StackPane {
             previouslyDisabled = content.isDisable();
             content.setDisable(true);
         }
+        getChildren().forEach(OverlayHost::disposeContent);
         getChildren().setAll(popup);
         setManaged(true);
         setVisible(true);
+        setMotionState(motionAvailable,motionEnabled);
         toFront();
         List<Node> focusable = new ArrayList<>();
         collectFocusable(popup, focusable);
@@ -54,11 +58,17 @@ public final class OverlayHost extends StackPane {
 
     public boolean close() {
         if (!isVisible()) return false;
+        getChildren().forEach(OverlayHost::disposeContent);
         getChildren().clear();
         setVisible(false);
         setManaged(false);
         content.setDisable(previouslyDisabled);
-        if (previousFocus != null && previousFocus.getScene() == getScene()) previousFocus.requestFocus();
+        if (previousFocus != null && previousFocus.getScene() == getScene()
+                &&previousFocus.isVisible()&&!previousFocus.isDisabled())previousFocus.requestFocus();
+        else {
+            List<Node> targets=new ArrayList<>();collectFocusable(content,targets);
+            if(!targets.isEmpty())targets.getFirst().requestFocus();
+        }
         previousFocus = null;
         return true;
     }
@@ -68,5 +78,27 @@ public final class OverlayHost extends StackPane {
         if (node.isFocusTraversable()) targets.add(node);
         if (node instanceof Parent parent)
             for (Node child : parent.getChildrenUnmodifiable()) collectFocusable(child, targets);
+    }
+
+    public void setMotionState(boolean available,boolean enabled) {
+        motionAvailable=available;motionEnabled=enabled;
+        getChildren().forEach(node->syncMotion(node,available&&isVisible(),enabled));
+    }
+
+    public boolean motionRunning() { return getChildren().stream().anyMatch(OverlayHost::motionRunning); }
+
+    private static void syncMotion(Node node,boolean available,boolean enabled) {
+        if(node instanceof AnimatedPanel panel)panel.setMotionState(available,enabled);
+        if(node instanceof Parent parent)
+            parent.getChildrenUnmodifiable().forEach(child->syncMotion(child,available,enabled));
+    }
+    private static boolean motionRunning(Node node) {
+        if(node instanceof AnimatedPanel panel&&panel.motionRunning())return true;
+        return node instanceof Parent parent&&parent.getChildrenUnmodifiable().stream().anyMatch(OverlayHost::motionRunning);
+    }
+    private static void disposeContent(Node node) {
+        if(node instanceof AnimatedPanel panel)panel.close();
+        else if(node instanceof GameButton button)button.dispose();
+        else if(node instanceof Parent parent)parent.getChildrenUnmodifiable().forEach(OverlayHost::disposeContent);
     }
 }
