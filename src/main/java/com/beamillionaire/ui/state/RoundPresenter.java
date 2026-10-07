@@ -31,7 +31,7 @@ public final class RoundPresenter {
         return new GameplayViewState(round.question().category().displayName(), round.questionNumber(),
                 round.question().text(), round.question().choices(), round.selectedAnswer(),
                 round.selectionEnabled(), round.lockEnabled(), round.walkAwayEnabled(), helps,
-                round.eliminatedOptions(), feedback, round.credits(), round.questionNumber(), round.correctAnswers(),
+                round.eliminatedOptions(), feedback, round.credits(), round.questionNumber(),
                 round.status() == GameRound.Status.RETRY, notice);
     }
 

@@ -1,0 +1,36 @@
+/* Exported artwork provides control geometry; JavaFX owns timed visual feedback. */
+.game-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-opacity: 1;
+}
+.game-button:disabled {
+    -fx-cursor: default;
+    -fx-opacity: 0.45;
+}
+.game-button:disabled:selected,
+.game-button:disabled:correct,
+.game-button:disabled:incorrect {
+    -fx-opacity: 1;
+}
+.game-button .button-visual {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+.category-card, .gameplay-control {
+    -fx-background-color: transparent;
+}
+.theme-light .circuit-trace {
+    -fx-stroke: #087b89;
+}
+.theme-light .circuit-endpoint {
+    -fx-fill: #087b89;
+}
+.theme-light .ai-logo-trace {
+    -fx-stroke: #087b89;
+}

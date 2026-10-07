@@ -8,6 +8,7 @@ import java.util.*;
 
 /** Loads artwork and fonts without changing their appearance. */
 public final class AssetCatalog {
+    private static final Set<String> COMPOSITION_ROLES = Set.of("background-base", "decoration", "title");
     private final Map<String, AssetManifest.Artwork> descriptors = new HashMap<>();
     private final Map<String, Image> images = new HashMap<>();
     private final Map<String, Font> sizedFonts = new HashMap<>();
@@ -58,6 +59,16 @@ public final class AssetCatalog {
     public AssetManifest.Artwork artwork(String theme, String id) {
         return Objects.requireNonNull(descriptors.get(theme + "/" + id), "Unregistered artwork: " + id);
     }
+
+    /** Clean composition layers only; legacy flattened backgrounds and controls remain separately available. */
+    public List<AssetManifest.Artwork> layers(String theme, String screen) {
+        return descriptors.values().stream()
+                .filter(asset -> Objects.equals(theme, asset.theme()) && Objects.equals(screen, asset.screen()))
+                .filter(asset -> COMPOSITION_ROLES.contains(asset.role()))
+                .sorted(Comparator.comparingInt(AssetManifest.Artwork::layer).thenComparing(AssetManifest.Artwork::id))
+                .toList();
+    }
+
     public Image image(String theme, String id) {
         return Objects.requireNonNull(images.get(theme + "/" + id), "Unregistered asset: " + theme + "/" + id);
     }

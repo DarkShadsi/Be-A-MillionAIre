@@ -11,19 +11,8 @@ import com.beamillionaire.ui.design.ScreenRouter.Screen;
 final class ScoresScreen {
     private ScoresScreen() {}
     static void render(GamePresentation game, Pane pane) {
-        game.background(pane,"home");
-        var panel=game.centeredPanel(pane,"scores-panel",1000);
-        game.text(panel,"SCORE HISTORY",85,32,825,65,44,true);
-        var content=new Label();content.setWrapText(true);content.setTextFill(game.ink());
-        content.setFont(game.assets.font("body",28));content.setMaxWidth(790);
-        var scroll=new ScrollPane(content);scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        scroll.setId("scoreHistory");scroll.resizeRelocate(85,117,825,250);
-        scroll.setPrefSize(825,250);panel.getChildren().add(scroll);
-        game.action(panel,"Menu",340,407,320,()->game.show(Screen.MENU));
-        game.onRefresh(()->{content.setText(history(game));content.setTextFill(game.ink());});
-    }
-    private static String history(GamePresentation game){
+        game.background(pane,"home");game.panel(pane,830,448,1000);
+        game.text(pane,"SCORE HISTORY",915,480,825,65,44,true);
         String history;
         try {
             var entries=game.scoreStore.load();
@@ -32,6 +21,13 @@ final class ScoresScreen {
                     e.correctAnswers()+" correct  •  "+String.format(Locale.US,"%,d",e.payout())+" credits  •  "+
                     e.outcome().name().replace('_',' ')).toList());
         } catch(IOException error) { history=error.getMessage(); }
-        return history;
+        var content=new Label(history);content.setWrapText(true);content.setTextFill(game.ink());
+        content.setFont(game.assets.font("body",28));content.setMaxWidth(790);
+        var scroll=new ScrollPane(content);scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        scroll.setId("scoreHistory");scroll.resizeRelocate(915,565,825,250);
+        scroll.setPrefSize(825,250);pane.getChildren().add(scroll);
+        game.action(pane,"Menu",1110,855,320,()->game.show(Screen.MENU));
+
     }
 }
