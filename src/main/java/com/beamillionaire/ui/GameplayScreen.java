@@ -23,14 +23,14 @@ final class GameplayScreen {
         game.onMotionRunning(category::motionRunning);game.onDispose(category::close);
         var number=game.text(pane,"",750,76,420,62,34,true);
         var initial=game.gameplayState();
-        var content=new QuestionContent(initial.question(),initial.choices(),size->game.assets.font("body",size),
-                size->game.assets.font("body",size),game.ink(),36,30,30);
-        content.resizeRelocate(559,269,812,354);content.setPrefSize(812,354);
+        var content=new QuestionContent(initial.question(),initial.choices(),size->game.assets.font("question",size),
+                size->game.assets.font("choices",size),game.ink(),36,30,30);
+        content.resizeRelocate(554,253,822,454);content.setPrefSize(822,454);
         content.setOnReadFullQuestion(game::showFullQuestion);pane.getChildren().add(content);
         var feedbackPane=new AnswerFeedback();pane.getChildren().add(feedbackPane);
         var answers=new LinkedHashMap<String,GameButton>();
         for(String id:List.of("A","B","C","D"))answers.put(id,game.original(pane,"answer."+id.toLowerCase(Locale.ROOT),id,()->game.selectAnswer(id)));
-        var lock=game.action(pane,"Lock Answer",840,678,246,()->{
+        var lock=game.action(pane,"Lock Answer",850,978,220,()->{
             if(game.round!=null&&(game.round.status()==GameRound.Status.CORRECT||game.round.finished()))game.continueGame();else game.lockAnswer();
         });
         var helps=new EnumMap<GameplayViewState.Help,GameButton>(GameplayViewState.Help.class);
@@ -98,11 +98,11 @@ final class GameplayScreen {
                 label.setWrapText(true);label.setMaxWidth(740);label.setMinHeight(Region.USE_PREF_SIZE);
                 label.setAlignment(Pos.CENTER);
             }
-            var box=new VBox(24,title,detail,summary);box.setAlignment(Pos.CENTER);box.setMinHeight(330);
+            var box=new VBox(24,title,detail,summary);box.setAlignment(Pos.CENTER);box.setMinHeight(430);
             box.setStyle("-fx-padding: 12;");setContent(box);setFitToWidth(true);
             setHbarPolicy(ScrollBarPolicy.NEVER);
             setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-            resizeRelocate(559,269,812,354);setPrefSize(812,354);setVisible(false);
+            resizeRelocate(554,253,822,454);setPrefSize(822,454);setVisible(false);
         }
         void update(GamePresentation game,GameplayViewState state){
             boolean correct=game.round.status()!=GameRound.Status.LOST;
