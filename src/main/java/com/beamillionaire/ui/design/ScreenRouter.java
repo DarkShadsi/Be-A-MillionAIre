@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 
 /** Retains screens and owns navigation motion independently of their ambient motion. */
 public final class ScreenRouter {
-    public enum Screen { HOME, CATEGORIES, GAMEPLAY, MENU, RESULTS, SCORES }
+    public enum Screen { HOME, CATEGORIES, GAMEPLAY, MENU, RESULTS, SCORES, INSTRUCTIONS }
     public interface View {
         Parent root();
         default void onShown() {}

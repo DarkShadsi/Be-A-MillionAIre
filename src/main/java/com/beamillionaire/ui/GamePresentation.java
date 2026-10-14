@@ -100,6 +100,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         register(Screen.MENU,this::menu);
         register(Screen.RESULTS,this::results);
         register(Screen.SCORES,this::scores);
+        register(Screen.INSTRUCTIONS,this::instructions);
         root.addEventFilter(KeyEvent.KEY_PRESSED,this::keyPressed);
         applyTheme();
         show(Screen.HOME);
@@ -144,6 +145,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         final MotionScope motion=new MotionScope();
         final List<Runnable> appearanceUpdates=new ArrayList<>();
         final List<Runnable> refreshActions=new ArrayList<>();
+        final List<Runnable> shownActions=new ArrayList<>();
         final List<Runnable> disposeActions=new ArrayList<>();
         final List<BiConsumer<Boolean,Boolean>> motionActions=new ArrayList<>();
         final List<BooleanSupplier> motionActivity=new ArrayList<>();
@@ -171,6 +173,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         }
         public void onShown(){
             active=true;entrancePending=!started;
+            shownActions.forEach(Runnable::run);
             if(screen==Screen.CATEGORIES)buttons(pane).forEach(button->button.setFeedback(GameButton.Feedback.NORMAL));
             sync();
         }
@@ -179,6 +182,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
             active=false;motion.dispose();buttons(pane).forEach(GameButton::dispose);
             disposeActions.forEach(Runnable::run);
             disposeActions.clear();motionActions.clear();motionActivity.clear();refreshActions.clear();appearanceUpdates.clear();
+            shownActions.clear();
             pane.sceneProperty().removeListener(availabilityListener);
             pane.visibleProperty().removeListener(availabilityListener);
         }
@@ -201,6 +205,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
 
     /** Retained view hooks; callbacks update data without rebuilding visual nodes. */
     void onRefresh(Runnable action){if(renderingView==null)action.run();else renderingView.refreshActions.add(action);}
+    void onShown(Runnable action){renderingView.shownActions.add(action);}
     void onMotionChanged(BiConsumer<Boolean,Boolean> action){renderingView.motionActions.add(action);}
     void onDispose(Runnable action){renderingView.disposeActions.add(action);}
     void onMotionRunning(BooleanSupplier activity){renderingView.motionActivity.add(activity);}
@@ -290,7 +295,9 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
     void composeBackground(Pane pane,String screen,MotionScope scope,boolean categoryEntrance){
         Runnable backdrop=()->pane.setStyle("-fx-background-color: "+(theme==Theme.LIGHT?"#f4fafa":screen.equals("gameplay")?"#02060a":"#000000")+";");
         backdrop.run();onAppearance(backdrop);
+        if(screen.equals("gameplay"))GameplayFrame.add(this,pane);
         for(var asset:assets.layers(themeKey(),screen)){
+            if(asset.id().equals("gameplay.base"))continue;
             if(asset.id().equals("home.hexagons")){
                 var hexagons=new AmbientHexagons(pane,scope);
                 var wrapper=new Group(hexagons);wrapper.relocate(asset.left(),asset.top());
@@ -305,7 +312,6 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
             onAppearance(()->image.setImage(assets.image(themeKey(),asset.id())));
             if(asset.id().endsWith(".base")){
                 ControlArtwork.cleanBackground(image,screen);
-                if(screen.equals("gameplay"))GameplayFrame.clearInterior(image);
             }
             if(asset.id().startsWith("gameplay.motif-")){image.setFitWidth(128);image.setFitHeight(128);}
             var idle=new Group(image);
@@ -314,7 +320,6 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
             if(asset.id().startsWith("gameplay.motif-"))entrance.relocate(896,838);
             entrance.setId(asset.id().replace('.','-'));entrance.setMouseTransparent(true);
             pane.getChildren().add(entrance);
-            if(asset.id().equals("gameplay.base"))GameplayFrame.add(pane);
             if(asset.id().startsWith("home.ring-")){
                 int index=Integer.parseInt(asset.id().substring(asset.id().length()-1))-1;
                 UiEffects.ambient(scope,idle,UiEffects.HOME_RINGS.get(index));
@@ -335,7 +340,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
                 UiEffects.spin(scope,idle,UiEffects.GAMEPLAY_SPINS.get(index));
             }
         }
-        CircuitEffects.addScreen(pane,screen,scope);
+        if(!screen.equals("gameplay"))CircuitEffects.addScreen(pane,screen,scope);
     }
     void categoryEntrance(Pane pane,GameButton button,int order){
         pane.getChildren().remove(button);var wrapper=new Group(button);pane.getChildren().add(wrapper);
@@ -423,6 +428,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
     }
     void gameplay(Pane pane){ GameplayScreen.render(this,pane); }
     void menu(Pane pane){ MenuScreen.render(this,pane); }
+    void instructions(Pane pane){ InstructionsScreen.render(this,pane); }
     void toggleTheme(){
         theme=theme==Theme.DARK?Theme.LIGHT:Theme.DARK;
         applyTheme();
@@ -451,19 +457,6 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         if(secondary==null)action(pane,primary,365,475,320,yes);
         else{action(pane,primary,165,475,300,yes);action(pane,secondary,580,475,300,no);}
         overlays.show(pane);
-    }
-    void showFullQuestion(String question){
-        if(!acceptingGameplayInput())return;
-        var pane=panelContent("full-question-panel",1050);
-        text(pane,"FULL QUESTION",85,45,880,65,44,true);
-        var body=new Label(question);body.setWrapText(true);body.setTextFill(ink());
-        body.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
-        body.setMinWidth(0);body.setTextOverrun(javafx.scene.control.OverrunStyle.CLIP);
-        body.setFont(assets.font("question",30));body.setMaxWidth(830);
-        var scroll=new ScrollPane(body);scroll.setFitToWidth(true);scroll.setId("fullQuestionScroll");
-        scroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-        scroll.resizeRelocate(95,135,860,310);scroll.setPrefSize(860,310);pane.getChildren().add(scroll);
-        action(pane,"Close",365,475,320,this::closeOverlay);overlays.show(pane);
     }
     boolean acceptingGameplayInput(){return router.current()==Screen.GAMEPLAY&&!router.transitioning()&&!overlays.isVisible();}
     @Override public void selectAnswer(String answer){
@@ -537,6 +530,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
             event.consume();return;
         }
         if(router.current()==Screen.GAMEPLAY){
+            if(event.getCode()==KeyCode.ENTER&&focus instanceof ButtonBase)return;
             String letter=event.getCode().name();
             if(Set.of("A","B","C","D").contains(letter)){selectAnswer(letter);event.consume();}
             else if(event.getCode()==KeyCode.ENTER&&gameplayState().lockEnabled()){lockAnswer();event.consume();}

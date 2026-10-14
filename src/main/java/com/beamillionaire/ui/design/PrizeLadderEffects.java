@@ -10,9 +10,9 @@ import javafx.util.Duration;
 
 /** Earned progress is gold; the active question's potential prize remains a separate cyan outline. */
 public final class PrizeLadderEffects extends Group implements AutoCloseable {
-    private final Rectangle active=new Rectangle(1518,180,270,35);
-    private final Rectangle earned=new Rectangle(1518,180,270,35);
-    private final Polygon credits=new Polygon(1503,937,1607,937,1660,897,1856,897,1856,1013,1503,1013);
+    private final Rectangle active=new Rectangle(GameplayLayout.LADDER_X,GameplayLayout.LADDER_Y,GameplayLayout.LADDER_WIDTH,GameplayLayout.LADDER_ROW_HEIGHT);
+    private final Rectangle earned=new Rectangle(GameplayLayout.LADDER_X,GameplayLayout.LADDER_Y,GameplayLayout.LADDER_WIDTH,GameplayLayout.LADDER_ROW_HEIGHT);
+    private final Polygon credits=new Polygon(1600,938,1618,920,1862,920,1880,938,1880,1002,1600,1002);
     private final Group gold=new Group(earned,credits);
     private final DropShadow rowGlow=new DropShadow(),creditGlow=new DropShadow();
     private final Timeline pulse=new Timeline();
@@ -28,7 +28,7 @@ public final class PrizeLadderEffects extends Group implements AutoCloseable {
         checkpoint.setCycleCount(2);checkpoint.setAutoReverse(true);checkpoint.setInterpolator(Interpolator.EASE_BOTH);
     }
     public void update(int activePosition,int earnedPosition,boolean lightTheme){
-        active.setY(180+(15-activePosition)*37.9590363153);active.setVisible(activePosition>0);
+        active.setY(GameplayLayout.prizeY(activePosition));active.setVisible(activePosition>0);
         Color accent=Color.web(lightTheme?"#927000":"#dec33f");
         double progress=earnedPosition/15.0;
         for(var shape:java.util.List.of(earned,credits)){
@@ -36,7 +36,7 @@ public final class PrizeLadderEffects extends Group implements AutoCloseable {
             shape.setFill(accent.deriveColor(0,1,1,.06+.10*progress));
         }
         for(var glow:java.util.List.of(rowGlow,creditGlow)){glow.setColor(accent.deriveColor(0,1,1,.65));glow.setRadius(4+8*progress);}
-        earned.setY(180+(15-earnedPosition)*37.9590363153);earned.setVisible(earnedPosition>0);
+        earned.setY(GameplayLayout.prizeY(earnedPosition));earned.setVisible(earnedPosition>0);
         if(this.earnedPosition!=earnedPosition){
             int previous=this.earnedPosition;this.earnedPosition=earnedPosition;
             pulse.stop();gold.setOpacity(1);

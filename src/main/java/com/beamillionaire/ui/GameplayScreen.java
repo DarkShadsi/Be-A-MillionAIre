@@ -4,7 +4,6 @@ import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import java.util.*;
@@ -18,15 +17,14 @@ final class GameplayScreen {
     private GameplayScreen() {}
     static void render(GamePresentation game,Pane pane){
         game.background(pane,"gameplay");
-        var category=new MarqueeLabel();category.resizeRelocate(100,170,330,85);category.setPrefSize(330,85);
+        var category=new MarqueeLabel();GameplayLayout.CATEGORY.place(category);
         pane.getChildren().add(category);game.onMotionChanged(category::setMotionState);
         game.onMotionRunning(category::motionRunning);game.onDispose(category::close);
-        var number=game.text(pane,"",750,76,420,62,34,true);
+        var number=game.text(pane,"",745,48,430,48,34,true);
         var initial=game.gameplayState();
         var content=new QuestionContent(initial.question(),initial.choices(),size->game.assets.font("question",size),
                 size->game.assets.font("choices",size),game.ink(),36,30,30);
-        content.resizeRelocate(554,253,822,454);content.setPrefSize(822,454);
-        content.setOnReadFullQuestion(game::showFullQuestion);pane.getChildren().add(content);
+        GameplayLayout.READING.place(content);pane.getChildren().add(content);
         var feedbackPane=new AnswerFeedback();pane.getChildren().add(feedbackPane);
         var answers=new LinkedHashMap<String,GameButton>();
         for(String id:List.of("A","B","C","D"))answers.put(id,game.original(pane,"answer."+id.toLowerCase(Locale.ROOT),id,()->game.selectAnswer(id)));
@@ -36,16 +34,17 @@ final class GameplayScreen {
         var helps=new EnumMap<GameplayViewState.Help,GameButton>(GameplayViewState.Help.class);
         String[] names={"50:50","Clue","Second Chance"};int index=0;
         for(var help:GameplayViewState.Help.values()){
-            var button=game.original(pane,"help."+(index+1),names[index],()->game.useHelp(help));
+            var button=game.action(pane,names[index],100,450+index*110,220,()->game.useHelp(help));
+            button.setId("help-"+(index+1));
             button.setCaption(names[index],game.assets.font("body",index==2?27:34),game.ink());helps.put(help,button);index++;
         }
         var walk=game.original(pane,"walk-away","Walk away",game::walkAway);
-        var credits=game.text(pane,"",1690,930,180,64,39,false);
-        var notice=game.text(pane,"",620,710,680,34,24,true);
+        var credits=game.text(pane,"",1608,929,264,64,39,false);
+        var notice=game.text(pane,"",570,776,780,34,24,true);
         var ladder=new PrizeLadderEffects();pane.getChildren().add(ladder);
         game.onMotionChanged(ladder::setMotionState);game.onMotionRunning(ladder::motionRunning);game.onDispose(ladder::close);
         for(int checkpoint:GameRules.CHECKPOINT_QUESTIONS){
-            var marker=new javafx.scene.shape.Circle(1504,197+(15-checkpoint)*37.9590363153,5,Color.web("#dec33f"));
+            var marker=new javafx.scene.shape.Circle(1610,GameplayLayout.prizeY(checkpoint)+16,5,Color.web("#dec33f"));
             marker.setMouseTransparent(true);pane.getChildren().add(marker);
         }
         game.onRefresh(()->{
@@ -87,22 +86,21 @@ final class GameplayScreen {
     }
 
     /** Retained Milly answer summary; only its text and theme change between submissions. */
-    private static final class AnswerFeedback extends ScrollPane {
+    private static final class AnswerFeedback extends Pane {
         final Label title=new Label();
         final Label detail=new Label();
         final Label summary=new Label();
-        String displayed;
         AnswerFeedback(){
             setId("answerFeedback");title.setId("answerFeedbackTitle");
             for(var label:List.of(title,detail,summary)){
-                label.setWrapText(true);label.setMaxWidth(740);label.setMinHeight(Region.USE_PREF_SIZE);
+                label.setWrapText(true);label.setMaxWidth(1060);label.setMinHeight(Region.USE_PREF_SIZE);
+                label.setTextOverrun(javafx.scene.control.OverrunStyle.CLIP);
                 label.setAlignment(Pos.CENTER);
             }
-            var box=new VBox(24,title,detail,summary);box.setAlignment(Pos.CENTER);box.setMinHeight(430);
-            box.setStyle("-fx-padding: 12;");setContent(box);setFitToWidth(true);
-            setHbarPolicy(ScrollBarPolicy.NEVER);
-            setStyle("-fx-background: transparent; -fx-background-color: transparent;");
-            resizeRelocate(554,253,822,454);setPrefSize(822,454);setVisible(false);
+            var box=new VBox(28,title,detail,summary);box.setAlignment(Pos.CENTER);
+            box.setManaged(false);box.resizeRelocate(0,0,1120,560);box.setPrefSize(1120,560);
+            box.setStyle("-fx-padding: 18;");getChildren().add(box);
+            GameplayLayout.READING.place(this);setVisible(false);
         }
         void update(GamePresentation game,GameplayViewState state){
             boolean correct=game.round.status()!=GameRound.Status.LOST;
@@ -118,8 +116,6 @@ final class GameplayScreen {
                     :String.format(Locale.US,"Current credits: %,d • Continue when ready",state.credits()));
             summary.setFont(game.assets.font("body",28));summary.setTextFill(game.ink());
             summary.setStyle("-fx-text-fill: #"+game.ink().toString().substring(2,8)+";");
-            String key=game.roundId+"/"+game.round.question().id()+"/"+game.round.status();
-            if(!Objects.equals(displayed,key)){displayed=key;setVvalue(0);}
         }
     }
 }

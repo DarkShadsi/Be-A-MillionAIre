@@ -16,6 +16,12 @@ import javafx.util.Duration;
 public final class CircuitEffects {
     private CircuitEffects() {}
 
+    /** Native frames supply their own paths so highlights always follow the visible outline. */
+    public static void addPaths(Pane host,MotionScope scope,double[][] paths){
+        for(int index=0;index<paths.length;index++)
+            screenTrace(host,scope,paths[index],7+index%5,index*.13%1);
+    }
+
     public static void addScreen(Pane host,String screen,MotionScope scope) {
         if("categories".equals(screen))return;
         if("gameplay".equals(screen)) {
