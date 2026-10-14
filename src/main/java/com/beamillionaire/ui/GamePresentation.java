@@ -237,7 +237,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
     private void applyTheme(){
         root.getStyleClass().removeAll("theme-dark","theme-light");
         root.getStyleClass().add("theme-"+themeKey());
-        root.setStyle("-fx-background-color: "+(theme==Theme.DARK?"#02060a":"#f4fafa")+";");
+        root.setStyle("-fx-background-color: "+(theme==Theme.DARK?"#02060a":"#e2eeee")+";");
     }
     private void observeScene(Scene scene){
         if(observedScene!=null)observedScene.windowProperty().removeListener(windowListener);
@@ -293,7 +293,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         composeBackground(pane,screen,renderingView.motion,true);
     }
     void composeBackground(Pane pane,String screen,MotionScope scope,boolean categoryEntrance){
-        Runnable backdrop=()->pane.setStyle("-fx-background-color: "+(theme==Theme.LIGHT?"#f4fafa":screen.equals("gameplay")?"#02060a":"#000000")+";");
+        Runnable backdrop=()->pane.setStyle("-fx-background-color: "+(theme==Theme.LIGHT?"#e2eeee":screen.equals("gameplay")?"#02060a":"#000000")+";");
         backdrop.run();onAppearance(backdrop);
         if(screen.equals("gameplay"))GameplayFrame.add(this,pane);
         for(var asset:assets.layers(themeKey(),screen)){
