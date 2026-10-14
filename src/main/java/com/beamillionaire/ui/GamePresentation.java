@@ -161,8 +161,9 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         public Parent root(){return pane;}
         public void refresh(){
             if(!built){
+                var previous=renderingView;
                 renderingView=this;
-                try{render.accept(pane);built=true;}finally{renderingView=null;}
+                try{render.accept(pane);built=true;}finally{renderingView=previous;}
             }
             appearanceUpdates.forEach(Runnable::run);
             refreshActions.forEach(Runnable::run);
@@ -204,7 +205,29 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
     void onDispose(Runnable action){renderingView.disposeActions.add(action);}
     void onMotionRunning(BooleanSupplier activity){renderingView.motionActivity.add(activity);}
     MotionScope motionScope(){return renderingView.motion;}
-    private void onAppearance(Runnable action){if(renderingView!=null)renderingView.appearanceUpdates.add(action);}
+    void onAppearance(Runnable action){if(renderingView!=null)renderingView.appearanceUpdates.add(action);}
+
+    /** Lazily retains an outcome layout with its own motion and disposal ownership. */
+    void resultVariant(Pane host,String id,BooleanSupplier selected,Consumer<Pane> render){
+        var owner=Objects.requireNonNull(renderingView);
+        var variant=new ScreenView(owner.screen,render);
+        variant.pane.resize(1920,1080);
+        variant.pane.setId(id);variant.pane.setManaged(false);variant.pane.setVisible(false);
+        host.getChildren().add(variant.pane);
+        onRefresh(()->{
+            boolean visible=selected.getAsBoolean();
+            variant.pane.setVisible(visible);
+            if(visible)variant.refresh();
+        });
+        onMotionChanged((available,enabled)->{
+            boolean active=owner.active&&selected.getAsBoolean();
+            if(active&&!variant.active)variant.entrancePending=!variant.started;
+            variant.active=active;variant.sync();
+        });
+        onMotionRunning(()->variant.motion.motionRunning()
+                ||variant.motionActivity.stream().anyMatch(BooleanSupplier::getAsBoolean));
+        onDispose(variant::dispose);
+    }
 
     private void applyTheme(){
         root.getStyleClass().removeAll("theme-dark","theme-light");
