@@ -123,8 +123,11 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
     }
     void syncAudioScene(){
         if(!audioVisible||disposed)return;
-        var scene=audioScreen==Screen.HOME?GameAudio.Scene.HOME:
-                audioScreen==Screen.GAMEPLAY&&round!=null&&!round.finished()?GameAudio.Scene.GAMEPLAY:GameAudio.Scene.SILENT;
+        var scene=switch(audioScreen){
+            case HOME, MENU, CATEGORIES, SCORES, INSTRUCTIONS -> GameAudio.Scene.HOME;
+            case GAMEPLAY -> round!=null&&!round.finished()?GameAudio.Scene.GAMEPLAY:GameAudio.Scene.SILENT;
+            default -> GameAudio.Scene.SILENT;
+        };
         audio.setScene(scene);
     }
     public boolean closeOverlay(){

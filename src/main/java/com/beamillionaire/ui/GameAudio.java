@@ -25,8 +25,8 @@ public final class GameAudio implements AutoCloseable {
     /** Center of the strongest 50 ms RMS burst in the bundled logoSound.wav. */
     public static final long LOGO_IMPACT_MILLIS = 1425;
 
-    public static final List<String> FILES = List.of("logoSound.wav", "homeScreenSound.wav",
-            "inGameSound.wav", "hover.wav", "correct.wav", "wrong.wav", "win.wav");
+    public static final List<String> FILES = List.of("logoSound.wav", "win.wav", "correct.wav",
+            "wrong.wav", "hover.wav", "homeScreenSound.wav", "inGameSound.wav");
     private static final Map<Cue, String> CUE_FILES = Map.of(Cue.HOVER, "hover.wav",
             Cue.CORRECT, "correct.wav", Cue.WRONG, "wrong.wav", Cue.WIN, "win.wav");
     private static final double HOME_MUSIC_VOLUME = 1.0, GAMEPLAY_MUSIC_VOLUME = 1.6;
@@ -47,6 +47,7 @@ public final class GameAudio implements AutoCloseable {
     private Scene scene = Scene.SILENT;
     private Voice background;
     private Cue outcome;
+    private Cue pendingCue;
     private long outcomeVersion, lastHoverNanos;
     private boolean hoverPlayed;
 
@@ -180,6 +181,11 @@ public final class GameAudio implements AutoCloseable {
             voices.put(file, voice);
             available = true;
             updateBackground();
+            Cue loadedCue = cueForFile(file);
+            if (loadedCue != null && pendingCue == loadedCue && audible()) {
+                pendingCue = null;
+                playCue(loadedCue);
+            }
         } catch (Exception error) {
             if (!closed.get()) System.err.println("Audio unavailable (" + file + "): " + error.getMessage());
         }
@@ -221,7 +227,11 @@ public final class GameAudio implements AutoCloseable {
     private void playCue(Cue cue) {
         if (!audible()) return;
         Voice voice = voices.get(CUE_FILES.get(cue));
-        if (voice == null) return;
+        if (voice == null) {
+            if (cue != Cue.HOVER) pendingCue = cue;
+            return;
+        }
+        if (cue != Cue.HOVER) pendingCue = null;
         if (cue == Cue.HOVER) {
             long now = nanoTime.getAsLong();
             if (hoverPlayed && now - lastHoverNanos < HOVER_INTERVAL_NANOS) return;
@@ -254,6 +264,7 @@ public final class GameAudio implements AutoCloseable {
     }
 
     private void stopTransients() {
+        pendingCue = null;
         outcome = null;
         outcomeVersion++;
         for (Cue cue : Cue.values()) {
@@ -268,6 +279,13 @@ public final class GameAudio implements AutoCloseable {
             Voice music = voices.get(file);
             if (music != null) pause(music);
         }
+    }
+
+    private static Cue cueForFile(String file) {
+        for (var entry : CUE_FILES.entrySet()) {
+            if (entry.getValue().equals(file)) return entry.getKey();
+        }
+        return null;
     }
 
     private void pause(Voice voice) {
