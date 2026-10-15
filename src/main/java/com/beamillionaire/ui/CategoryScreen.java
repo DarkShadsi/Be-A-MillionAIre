@@ -17,6 +17,7 @@ final class CategoryScreen {
             button.getStyleClass().add("category-card");
             button.setOnAction(event->{
                 if(game.router.transitioning()||game.overlays.isVisible())return;
+                game.audio.play(GameAudio.Cue.CATEGORY);
                 button.setFeedback(GameButton.Feedback.SELECTED);
                 game.chooseCategory(entry.getValue());
             });

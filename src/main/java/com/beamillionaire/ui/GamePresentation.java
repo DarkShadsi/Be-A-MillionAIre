@@ -125,7 +125,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         if(!audioVisible||disposed)return;
         var scene=switch(audioScreen){
             case HOME, MENU, CATEGORIES, SCORES, INSTRUCTIONS -> GameAudio.Scene.HOME;
-            case GAMEPLAY -> round!=null&&!round.finished()?GameAudio.Scene.GAMEPLAY:GameAudio.Scene.SILENT;
+            case GAMEPLAY -> GameAudio.Scene.GAMEPLAY;
             default -> GameAudio.Scene.SILENT;
         };
         audio.setScene(scene);
@@ -313,7 +313,11 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
     void show(Screen screen){
         if(router.transitioning())return;
         keyboardNavigation=false;
-        overlays.close();router.show(screen);
+        overlays.close();
+        if(screen==Screen.RESULTS && round!=null && round.status()==GameRound.Status.WON){
+            audio.play(GameAudio.Cue.WIN);
+        }
+        router.show(screen);
     }
     void background(Pane pane,String screen){
         composeBackground(pane,screen,renderingView.motion,true);
@@ -412,7 +416,11 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         onAppearance(()->{button.setArtwork(assets.image(themeKey(),id));button.setLightTheme(theme==Theme.LIGHT);
             button.setCaptionColor(id.equals("walk-away")?Color.web("#ff777e"):ink());});
         button.setId(id.replace('.','-'));
-        button.setOnAction(event->{if(router.transitioning()&&!overlays.isVisible())return;action.run();});pane.getChildren().add(button);return button;
+        button.setOnAction(event->{
+            if(router.transitioning()&&!overlays.isVisible())return;
+            audio.play(GameAudio.Cue.BUTTON_CLICK);
+            action.run();
+        });pane.getChildren().add(button);return button;
     }
     GameButton action(Pane pane,String text,double x,double y,double width,Runnable action){
         var a=assets.artwork(themeKey(),"button.blank");
@@ -421,7 +429,11 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         onAppearance(()->{button.setArtwork(assets.image(themeKey(),"button.blank"));button.setLightTheme(theme==Theme.LIGHT);button.setCaptionColor(ink());});
         button.setCaption(text,assets.font("body",Math.min(36,width/8)),ink());
         button.relocate(x,y);button.setId("action-"+text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+","-"));
-        button.setOnAction(event->{if(router.transitioning()&&!overlays.isVisible())return;action.run();});pane.getChildren().add(button);return button;
+        button.setOnAction(event->{
+            if(router.transitioning()&&!overlays.isVisible())return;
+            audio.play(GameAudio.Cue.BUTTON_CLICK);
+            action.run();
+        });pane.getChildren().add(button);return button;
     }
     Label text(Pane pane,String value,double x,double y,double width,double height,double size,boolean bold){
         var label=new Label(value);label.setWrapText(true);label.setTextFill(ink());
@@ -512,8 +524,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         if(round!=null && round.lockEnabled()) {
             round.lockAnswer();
             audio.play(switch(round.status()){
-                case WON -> GameAudio.Cue.WIN;
-                case CORRECT -> GameAudio.Cue.CORRECT;
+                case WON, CORRECT -> GameAudio.Cue.CORRECT;
                 default -> GameAudio.Cue.WRONG;
             });
             renderRound();
