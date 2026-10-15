@@ -7,7 +7,7 @@ import java.util.*;
 public record GameplayViewState(String category, int questionNumber, String question, List<Choice> choices,
         String selectedAnswer, boolean selectionEnabled, boolean lockEnabled, boolean walkAwayEnabled,
         Map<Help, HelpState> helps, Set<String> eliminatedOptions, Map<String, Feedback> feedback,
-        long credits, int ladderPosition, boolean secondChanceRetry, String notice) {
+        long credits, int ladderPosition, int earnedLadderPosition, boolean secondChanceRetry, String notice) {
     public enum Help { FIFTY_FIFTY, CLUE, SECOND_CHANCE }
     public enum HelpState { AVAILABLE, ACTIVE, USED, DISABLED }
     public enum Feedback { NORMAL, CORRECT, INCORRECT }
@@ -29,7 +29,8 @@ public record GameplayViewState(String category, int questionNumber, String ques
             throw new IllegalArgumentException("Selected option must be available.");
         if (lockEnabled && selectedAnswer == null)
             throw new IllegalArgumentException("Lock Answer requires a selection.");
-        if (questionNumber < 1 || questionNumber > 15 || ladderPosition < 0 || ladderPosition > 15 || credits < 0)
+        if (questionNumber < 1 || questionNumber > 15 || ladderPosition < 0 || ladderPosition > 15
+                || earnedLadderPosition < 0 || earnedLadderPosition > 15 || credits < 0)
             throw new IllegalArgumentException("Invalid displayed progress.");
         if (!helps.keySet().equals(EnumSet.allOf(Help.class)))
             throw new IllegalArgumentException("All helps require a displayed state.");

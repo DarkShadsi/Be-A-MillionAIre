@@ -20,6 +20,7 @@ import javafx.scene.transform.Scale;
 import javafx.util.Duration;
 
 import java.io.InputStream;
+import java.util.function.Consumer;
 
 public final class SplashScreen {
 
@@ -72,6 +73,8 @@ public final class SplashScreen {
     private boolean introDone, loadingDone;
     private Transition shimmer, revealTrigger, reveal, introHold, spinHud, loadingIndicator;
     private Runnable onReady;
+    private Duration shimmerCueTime;
+    private Consumer<Duration> onShimmerCue;
 
     public SplashScreen() {
         buildLogo();
@@ -83,6 +86,7 @@ public final class SplashScreen {
         root.setStyle("-fx-background-color: #070c12;");
 
         shimmer = buildShimmer();
+        shimmer.currentTimeProperty().addListener((property, before, current) -> checkShimmerCue(current));
         revealTrigger = new PauseTransition(Duration.seconds(3.1));
         revealTrigger.setOnFinished(event -> revealRestOfScene());
         shimmer.play();
@@ -92,6 +96,25 @@ public final class SplashScreen {
     public Parent root() { return root; }
 
     public void resize(double sceneW, double sceneH) { layout(sceneW, sceneH); }
+
+    public Duration shimmerMidpoint() { return shimmer.getCycleDuration().divide(2); }
+
+    /** A one-shot cue follows animation time and reports any lateness in the current FX pulse. */
+    public void setOnShimmerCue(Duration time, Consumer<Duration> callback) {
+        if (time == null || !time.greaterThanOrEqualTo(Duration.ZERO) || time.greaterThan(shimmer.getCycleDuration()))
+            throw new IllegalArgumentException("Cue must fall within the shimmer.");
+        shimmerCueTime = time;
+        onShimmerCue = java.util.Objects.requireNonNull(callback);
+        checkShimmerCue(shimmer.getCurrentTime());
+    }
+
+    private void checkShimmerCue(Duration current) {
+        if (onShimmerCue != null && current.greaterThanOrEqualTo(shimmerCueTime)) {
+            var callback = onShimmerCue;
+            onShimmerCue = null;
+            callback.accept(current.subtract(shimmerCueTime));
+        }
+    }
 
     public void setOnReady(Runnable onReady) {
         this.onReady = onReady;
@@ -112,6 +135,7 @@ public final class SplashScreen {
     }
 
     public void stopAnimations() {
+        onShimmerCue = null;
         for (Animation animation : new Animation[]{shimmer, revealTrigger, reveal, introHold, spinHud, loadingIndicator}) {
             if (animation != null) animation.stop();
         }

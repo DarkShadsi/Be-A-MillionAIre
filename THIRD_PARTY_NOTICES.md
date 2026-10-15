@@ -22,3 +22,9 @@ OpenJFX's graphics module includes Independent JPEG Group and Mesa/Khronos notic
 A portable build also includes the JDK runtime's `legal` directory and its notices; the runtime vendor and version depend on the JDK used for packaging. Keep those files with the portable application. Runtime libraries accompany the source ZIP. Maven resolves build dependencies. These component licenses do not license the game's own source code.
 
 JavaFX source supplies the interactive controls and live text over the retained exported artwork. The dependency licenses above do not apply to the Canva artwork or extracted font files.
+
+## Audio
+
+The victory effect `audio/win.wav` is converted from `Audio/8-Bit jingles/jingles_NES12.ogg` in [Kenney Music Jingles](https://kenney.nl/assets/music-jingles), released under Creative Commons CC0. Its supplied license is retained in `third-party-licenses/kenney-music-jingles.txt`.
+
+The six other WAV files were supplied by the project team through its selected-audio Google Drive folder. Their source links and conversion records are retained alongside the bundled files in `audio/SOURCES.json`. The Kenney CC0 dedication applies to the victory effect.
