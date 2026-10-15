@@ -159,20 +159,8 @@ public final class WinArtwork {
         pulse.setDelay(Duration.seconds(delay));pulse.setCycleCount(Animation.INDEFINITE);
         motion.register(pulse,()->{star.setOpacity(.8);star.setScaleX(1);star.setScaleY(1);});
     }
-    private void trace(Pane parent,double seconds,double delay,double... points){
-        double length=0;for(int i=2;i<points.length;i+=2)length+=Math.hypot(points[i]-points[i-2],points[i+1]-points[i-1]);
-        var glow=line(parent,6,false,.35,points);var highlight=line(parent,2.3,false,1,points);
-        for(var path:new Polyline[]{glow,highlight}){path.setOpacity(0);path.getStrokeDashArray().setAll(80.0,length+80);}
-        var pulse=new Timeline(new KeyFrame(Duration.ZERO,new KeyValue(glow.strokeDashOffsetProperty(),80),
-                new KeyValue(highlight.strokeDashOffsetProperty(),80),new KeyValue(glow.opacityProperty(),0),new KeyValue(highlight.opacityProperty(),0)),
-                new KeyFrame(Duration.seconds(.22),new KeyValue(glow.opacityProperty(),.65),new KeyValue(highlight.opacityProperty(),1)),
-                new KeyFrame(Duration.seconds(2.0),new KeyValue(glow.opacityProperty(),.65),new KeyValue(highlight.opacityProperty(),.8)),
-                new KeyFrame(Duration.seconds(2.4),new KeyValue(glow.strokeDashOffsetProperty(),-length,Interpolator.LINEAR),
-                        new KeyValue(highlight.strokeDashOffsetProperty(),-length,Interpolator.LINEAR),
-                        new KeyValue(glow.opacityProperty(),0),new KeyValue(highlight.opacityProperty(),0)),
-                new KeyFrame(Duration.seconds(seconds),new KeyValue(glow.opacityProperty(),0),new KeyValue(highlight.opacityProperty(),0)));
-        pulse.setDelay(Duration.seconds(delay*seconds));pulse.setCycleCount(Animation.INDEFINITE);
-        motion.register(pulse,()->{glow.setOpacity(0);highlight.setOpacity(0);});
+    private void trace(Pane parent,double seconds,double delay,double...points){
+        CircuitEffects.addTrace(parent,motion,points,seconds,delay);
     }
     private void dot(Pane parent,double x,double y,double radius){circle(parent,x,y,radius,3,false,1);}
     private Circle circle(Object parent,double x,double y,double radius,double width,boolean fill,double opacity){

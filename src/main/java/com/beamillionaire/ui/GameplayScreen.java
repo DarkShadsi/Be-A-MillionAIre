@@ -39,12 +39,14 @@ final class GameplayScreen {
             button.setCaption(names[index],game.assets.font("body",index==2?27:34),game.ink());helps.put(help,button);index++;
         }
         var walk=game.original(pane,"walk-away","Walk away",game::walkAway);
-        var credits=game.text(pane,"",1608,929,264,64,39,false);
+        var creditValue=GameplayLayout.CREDITS_VALUE;
+        var credits=game.text(pane,"",creditValue.x(),creditValue.y(),creditValue.width(),creditValue.height(),48,false);
+        credits.setId("current-credits");
         var notice=game.text(pane,"",570,776,780,34,24,true);
         var ladder=new PrizeLadderEffects();pane.getChildren().add(ladder);
         game.onMotionChanged(ladder::setMotionState);game.onMotionRunning(ladder::motionRunning);game.onDispose(ladder::close);
         for(int checkpoint:GameRules.CHECKPOINT_QUESTIONS){
-            var marker=new javafx.scene.shape.Circle(1610,GameplayLayout.prizeY(checkpoint)+16,5,Color.web("#dec33f"));
+            var marker=new javafx.scene.shape.Circle(GameplayLayout.CHECKPOINT_X,GameplayLayout.prizeY(checkpoint)+16,5,Color.web("#dec33f"));
             marker.setMouseTransparent(true);pane.getChildren().add(marker);
         }
         game.onRefresh(()->{

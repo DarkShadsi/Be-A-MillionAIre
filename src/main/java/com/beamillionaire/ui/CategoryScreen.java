@@ -18,7 +18,7 @@ final class CategoryScreen {
             button.setOnAction(event->{
                 if(game.router.transitioning()||game.overlays.isVisible())return;
                 button.setFeedback(GameButton.Feedback.SELECTED);
-                game.audio.play("click");game.chooseCategory(entry.getValue());
+                game.chooseCategory(entry.getValue());
             });
             game.categoryEntrance(pane,button,index);
         }

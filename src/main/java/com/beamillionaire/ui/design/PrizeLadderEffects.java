@@ -12,7 +12,7 @@ import javafx.util.Duration;
 public final class PrizeLadderEffects extends Group implements AutoCloseable {
     private final Rectangle active=new Rectangle(GameplayLayout.LADDER_X,GameplayLayout.LADDER_Y,GameplayLayout.LADDER_WIDTH,GameplayLayout.LADDER_ROW_HEIGHT);
     private final Rectangle earned=new Rectangle(GameplayLayout.LADDER_X,GameplayLayout.LADDER_Y,GameplayLayout.LADDER_WIDTH,GameplayLayout.LADDER_ROW_HEIGHT);
-    private final Polygon credits=new Polygon(1600,938,1618,920,1862,920,1880,938,1880,1002,1600,1002);
+    private final Polygon credits=GameplayLayout.creditsOutline();
     private final Group gold=new Group(earned,credits);
     private final DropShadow rowGlow=new DropShadow(),creditGlow=new DropShadow();
     private final Timeline pulse=new Timeline();

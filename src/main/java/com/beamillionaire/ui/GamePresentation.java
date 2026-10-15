@@ -55,6 +55,9 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
     private Scene observedScene;
     private Window observedWindow;
     private boolean disposed;
+    private boolean audioVisible;
+    private Screen audioScreen;
+    private boolean keyboardNavigation;
     private final InvalidationListener availabilityListener=ignored->syncMotion();
     private final ChangeListener<Window> windowListener=(property,oldWindow,newWindow)->observeWindow(newWindow);
     private final ChangeListener<Scene> sceneListener=(property,oldScene,newScene)->observeScene(newScene);
@@ -101,13 +104,31 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         register(Screen.RESULTS,this::results);
         register(Screen.SCORES,this::scores);
         register(Screen.INSTRUCTIONS,this::instructions);
-        root.addEventFilter(KeyEvent.KEY_PRESSED,this::keyPressed);
+        root.addEventFilter(MouseEvent.MOUSE_PRESSED,event->keyboardNavigation=false);
+        root.addEventFilter(KeyEvent.KEY_PRESSED,event->{
+            keyboardNavigation=Set.of(KeyCode.TAB,KeyCode.UP,KeyCode.DOWN,KeyCode.LEFT,KeyCode.RIGHT).contains(event.getCode());
+            if(keyboardNavigation)javafx.application.Platform.runLater(()->keyboardNavigation=false);
+            keyPressed(event);
+        });
         applyTheme();
         show(Screen.HOME);
         if(!startup.notices().isEmpty()) popup("Content notice",String.join("\n",startup.notices()),"Close",this::closeOverlay,null,null);
     }
     public Parent root(){return root;}
+    /** The application enables screen audio only when the splash gives way to this presentation. */
+    public void setAudioVisible(boolean visible){
+        if(audioVisible==visible)return;
+        audioVisible=visible;
+        if(visible)syncAudioScene();else audio.setScene(GameAudio.Scene.SILENT);
+    }
+    void syncAudioScene(){
+        if(!audioVisible||disposed)return;
+        var scene=audioScreen==Screen.HOME?GameAudio.Scene.HOME:
+                audioScreen==Screen.GAMEPLAY&&round!=null&&!round.finished()?GameAudio.Scene.GAMEPLAY:GameAudio.Scene.SILENT;
+        audio.setScene(scene);
+    }
     public boolean closeOverlay(){
+        keyboardNavigation=false;
         boolean closed=overlays.close();
         if(closed&&router.current()==Screen.CATEGORIES)
             buttons(screens).forEach(button->button.setFeedback(GameButton.Feedback.NORMAL));
@@ -173,6 +194,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         }
         public void onShown(){
             active=true;entrancePending=!started;
+            audioScreen=screen;syncAudioScene();
             shownActions.forEach(Runnable::run);
             if(screen==Screen.CATEGORIES)buttons(pane).forEach(button->button.setFeedback(GameButton.Feedback.NORMAL));
             sync();
@@ -287,6 +309,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
 
     void show(Screen screen){
         if(router.transitioning())return;
+        keyboardNavigation=false;
         overlays.close();router.show(screen);
     }
     void background(Pane pane,String screen){
@@ -352,6 +375,21 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         if(renderingView!=null&&renderingView.screen==Screen.GAMEPLAY){
             button.setCompactMotion(true);
         }
+        button.addEventHandler(MouseEvent.MOUSE_ENTERED,event->playHover(button));
+        button.focusedProperty().addListener((property,before,focused)->{
+            if(focused&&keyboardNavigation&&!button.isHover())playHover(button);
+        });
+    }
+    private void playHover(GameButton button){
+        if(!audioVisible||disposed||!windowActive()||button.isDisabled()
+                ||router.transitioning()&&!overlays.isVisible())return;
+        boolean inOverlay=false;
+        for(Node node=button;node!=null;node=node.getParent()){
+            if(!node.isVisible()||node.isDisabled())return;
+            if(node==overlays)inOverlay=true;
+        }
+        if(overlays.isVisible()!=inOverlay)return;
+        audio.play(GameAudio.Cue.HOVER);
     }
     GameButton original(Pane pane,String id,String accessible,Runnable action){
         var a=assets.artwork(themeKey(),id);
@@ -360,7 +398,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
             button=ControlArtwork.createCategory(id,accessible,assets.font("heading",36),ink());
             onMotionChanged(button::setCaptionMotionState);
         }
-        else if(id.equals("walk-away"))button=ControlArtwork.createWalkAway(accessible,assets.font("heading",44),Color.web("#ff777e"));
+        else if(id.equals("walk-away"))button=ControlArtwork.createWalkAway(accessible,assets.font("heading",48),Color.web("#ff777e"));
         else{
             button=new GameButton(assets.image(themeKey(),id),a.width(),a.height(),accessible);
             button.relocate(a.left(),a.top());
@@ -421,6 +459,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         if(ready){
             round=new GameRound(startup.bank(),category,new Random());
             roundId=UUID.randomUUID().toString();roundRecorded=false;scoreNotice=null;
+            audio.restartRoundMusic();
             show(Screen.GAMEPLAY);return;
         }
         popup(category.displayName(),"This category is not ready yet. It needs five easy, five medium, and five hard questions.",
@@ -451,6 +490,7 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
     void results(Pane pane){ ResultsScreen.render(this,pane); }
     void scores(Pane pane){ ScoresScreen.render(this,pane); }
     void popup(String title,String message,String primary,Runnable yes,String secondary,Runnable no){
+        keyboardNavigation=false;
         var pane=panelContent("popup-panel",1050);
         text(pane,title,85,65,880,70,44,true);
         text(pane,message,95,155,860,265,32,false);
@@ -468,10 +508,16 @@ public final class GamePresentation implements PresentationActions, AutoCloseabl
         if(!acceptingGameplayInput())return;
         if(round!=null && round.lockEnabled()) {
             round.lockAnswer();
+            audio.play(switch(round.status()){
+                case WON -> GameAudio.Cue.WIN;
+                case CORRECT -> GameAudio.Cue.CORRECT;
+                default -> GameAudio.Cue.WRONG;
+            });
             renderRound();
         }
     }
     void renderRound(){
+        syncAudioScene();
         if(round.finished()){
             results=RoundPresenter.results(round);
             if(!roundRecorded) {

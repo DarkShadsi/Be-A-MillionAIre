@@ -28,6 +28,9 @@
 .theme-light .circuit-trace {
     -fx-stroke: #087b89;
 }
+.theme-light .circuit-pulse {
+    -fx-stroke: #006978;
+}
 .theme-light .circuit-endpoint {
     -fx-fill: #087b89;
 }

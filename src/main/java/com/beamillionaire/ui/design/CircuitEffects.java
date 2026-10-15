@@ -6,6 +6,7 @@ import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.scene.layout.Pane;
+import javafx.scene.Group;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Polyline;
 import javafx.scene.shape.StrokeLineCap;
@@ -19,7 +20,7 @@ public final class CircuitEffects {
     /** Native frames supply their own paths so highlights always follow the visible outline. */
     public static void addPaths(Pane host,MotionScope scope,double[][] paths){
         for(int index=0;index<paths.length;index++)
-            screenTrace(host,scope,paths[index],7+index%5,index*.13%1);
+            addTrace(host,scope,paths[index],6+index%3,index*.13%1);
     }
 
     public static void addScreen(Pane host,String screen,MotionScope scope) {
@@ -55,96 +56,80 @@ public final class CircuitEffects {
 
     private static void corners(Pane host,MotionScope scope,double[][] paths){
         for(int index=0;index<paths.length;index++){
-            screenTrace(host,scope,paths[index],7+index%5,index*.13%1);
-            screenTrace(host,scope,mirror(paths[index],1920),8+index%4,(.43+index*.17)%1);
+            addTrace(host,scope,paths[index],6+index%3,index*.13%1);
+            addTrace(host,scope,mirror(paths[index],1920),7+index%3,(.43+index*.17)%1);
         }
     }
 
-    /** Three narrow strokes provide a soft glow without filtering a large image. */
-    private static void screenTrace(Pane host,MotionScope scope,double[] points,double cycle,double phase){
+    private record TraceProfile(double speed,double travelSeconds,double cycleSeconds,boolean breathing) {}
+    private static final double CORE_WIDTH=3.4,HALO_WIDTH=9;
+
+    /** The same compact vector trace is used by screen frames, Instructions and win artwork. */
+    public static Group addTrace(Pane host,MotionScope scope,double[] points,double minimumCycle,double phase){
+        return trace(host,scope,points,new TraceProfile(150,0,minimumCycle,true),phase);
+    }
+
+    public static void addPanel(Pane host,MotionScope scope,double width,double height) {
+        var profile=new TraceProfile(0,3,5.5,false);
+        trace(host,scope,scaled(new double[]{.019,.663,.019,.037,.588,.054},width,height),profile,0);
+        trace(host,scope,scaled(new double[]{.594,.088,.707,.088,.720,.051,.934,.051},width,height),profile,.35);
+        trace(host,scope,scaled(new double[]{.938,.099,.938,.963,.338,.963},width,height),profile,.58);
+        trace(host,scope,scaled(new double[]{.046,.948,.097,.948,.111,.932,.156,.932},width,height),profile,.17);
+    }
+
+    /** Layered strokes create the glow without a blur over the large containing node. */
+    private static Group trace(Pane host,MotionScope scope,double[] points,TraceProfile profile,double phase){
         double length=0;
-        for(int i=2;i<points.length;i+=2)length+=Math.hypot(points[i]-points[i-2],points[i+1]-points[i-1]);
-        double segment=Math.max(35,Math.min(65,length*.2)),travel=(length+segment)/100;
-        cycle=Math.max(cycle,travel+.7);
-        var breath=stroke(points,4.5,"circuit-breath");breath.setOpacity(.10);
-        var halo=stroke(points,6,"circuit-pulse-halo");halo.setOpacity(0);
-        var pulse=stroke(points,2.1,"circuit-pulse");pulse.setOpacity(0);
+        for(int index=2;index<points.length;index+=2)
+            length+=Math.hypot(points[index]-points[index-2],points[index+1]-points[index-1]);
+        double segment=Math.min(120,length*.35);
+        double travel=profile.travelSeconds()>0?profile.travelSeconds():Math.max(.55,(length+segment)/profile.speed());
+        double cycle=Math.max(profile.cycleSeconds(),travel+1.2);
+        var group=new Group();group.setManaged(false);group.setMouseTransparent(true);
+        group.setId("circuit-trace-"+host.getChildren().size());
+        var breath=stroke(points,4.5,"circuit-breath");breath.setOpacity(0);
+        var halo=stroke(points,HALO_WIDTH,"circuit-pulse-halo");halo.setOpacity(0);
+        var pulse=stroke(points,CORE_WIDTH,"circuit-pulse");pulse.setOpacity(0);
+        pulse.setId("circuit-pulse-"+host.getChildren().size());
         for(var path:new Polyline[]{halo,pulse}){
             path.getStrokeDashArray().setAll(segment,length+segment);
             path.setStrokeDashOffset(segment);
         }
-        var endpoint=new Rectangle(points[points.length-2]-2.5,points[points.length-1]-2.5,5,5);
-        endpoint.setManaged(false);endpoint.setMouseTransparent(true);endpoint.setFill(Color.web("#a5f5ff"));
+        var endpoint=new Rectangle(points[points.length-2]-3,points[points.length-1]-3,6,6);
+        endpoint.setManaged(false);endpoint.setMouseTransparent(true);endpoint.setFill(Color.web("#b9f8ff"));
         endpoint.getStyleClass().add("circuit-endpoint");endpoint.setOpacity(0);
-        host.getChildren().addAll(breath,halo,pulse,endpoint);
-        pulse.setId("circuit-pulse-"+host.getChildren().size());
-        var idle=new Timeline(new KeyFrame(Duration.ZERO,new KeyValue(breath.opacityProperty(),.10)),
-                new KeyFrame(Duration.seconds(3+phase*1.5),new KeyValue(breath.opacityProperty(),.28,Interpolator.EASE_BOTH)));
-        idle.setAutoReverse(true);idle.setCycleCount(Animation.INDEFINITE);idle.setDelay(Duration.seconds(phase*2));
-        scope.register(idle,()->breath.setOpacity(0));
-        var moving=new Timeline(
+        if(profile.breathing())group.getChildren().add(breath);
+        group.getChildren().addAll(halo,pulse,endpoint);host.getChildren().add(group);
+        var timeline=new Timeline(
                 new KeyFrame(Duration.ZERO,new KeyValue(pulse.strokeDashOffsetProperty(),segment),
                         new KeyValue(halo.strokeDashOffsetProperty(),segment),new KeyValue(pulse.opacityProperty(),0),
                         new KeyValue(halo.opacityProperty(),0),new KeyValue(endpoint.opacityProperty(),0)),
-                new KeyFrame(Duration.seconds(.18),new KeyValue(pulse.opacityProperty(),.92,Interpolator.EASE_BOTH),
-                        new KeyValue(halo.opacityProperty(),.24,Interpolator.EASE_BOTH)),
-                new KeyFrame(Duration.seconds(Math.max(.2,travel-.35)),new KeyValue(endpoint.opacityProperty(),0)),
-                new KeyFrame(Duration.seconds(Math.max(.3,travel-.175)),new KeyValue(endpoint.opacityProperty(),.85,Interpolator.EASE_OUT)),
+                new KeyFrame(Duration.seconds(.18),new KeyValue(pulse.opacityProperty(),.95,Interpolator.EASE_BOTH),
+                        new KeyValue(halo.opacityProperty(),.35,Interpolator.EASE_BOTH)),
+                new KeyFrame(Duration.seconds(travel-.30),new KeyValue(pulse.opacityProperty(),.95),
+                        new KeyValue(halo.opacityProperty(),.35),new KeyValue(endpoint.opacityProperty(),0)),
+                new KeyFrame(Duration.seconds(travel-.15),new KeyValue(endpoint.opacityProperty(),.9,Interpolator.EASE_OUT)),
                 new KeyFrame(Duration.seconds(travel),new KeyValue(pulse.strokeDashOffsetProperty(),-length,Interpolator.LINEAR),
                         new KeyValue(halo.strokeDashOffsetProperty(),-length,Interpolator.LINEAR),
                         new KeyValue(pulse.opacityProperty(),0,Interpolator.EASE_BOTH),new KeyValue(halo.opacityProperty(),0,Interpolator.EASE_BOTH)),
-                new KeyFrame(Duration.seconds(travel+.175),new KeyValue(endpoint.opacityProperty(),0,Interpolator.EASE_BOTH)),
+                new KeyFrame(Duration.seconds(travel+.15),new KeyValue(endpoint.opacityProperty(),0,Interpolator.EASE_BOTH)),
                 new KeyFrame(Duration.seconds(cycle),new KeyValue(endpoint.opacityProperty(),0)));
-        moving.setDelay(Duration.seconds(phase*cycle));moving.setCycleCount(Animation.INDEFINITE);
-        scope.register(moving,()->{pulse.setOpacity(0);halo.setOpacity(0);endpoint.setOpacity(0);});
+        if(profile.breathing())timeline.getKeyFrames().addAll(
+                new KeyFrame(Duration.ZERO,new KeyValue(breath.opacityProperty(),.12)),
+                new KeyFrame(Duration.seconds(cycle/2),new KeyValue(breath.opacityProperty(),.28,Interpolator.EASE_BOTH)),
+                new KeyFrame(Duration.seconds(cycle),new KeyValue(breath.opacityProperty(),.12,Interpolator.EASE_BOTH)));
+        timeline.setDelay(Duration.seconds(phase*cycle));timeline.setCycleCount(Animation.INDEFINITE);
+        scope.register(timeline,()->{
+            breath.setOpacity(0);pulse.setOpacity(0);halo.setOpacity(0);endpoint.setOpacity(0);
+            pulse.setStrokeDashOffset(segment);halo.setStrokeDashOffset(segment);
+        });
+        return group;
     }
     private static Polyline stroke(double[] points,double width,String style){
         var path=new Polyline(points);path.setManaged(false);path.setMouseTransparent(true);path.setFill(null);
-        path.setStroke(Color.web("#67e4f5"));path.setStrokeWidth(width);path.setStrokeLineCap(StrokeLineCap.ROUND);
+        path.setStroke(Color.web(style.equals("circuit-pulse")?"#b9f8ff":"#23d9f2"));
+        path.setStrokeWidth(width);path.setStrokeLineCap(StrokeLineCap.ROUND);
         path.getStyleClass().addAll("circuit-trace",style);return path;
-    }
-
-    public static void addPanel(Pane host,MotionScope scope,double width,double height) {
-        panelTrace(host,scope,scaled(new double[]{.019,.663,.019,.037,.588,.054},width,height),0,.76);
-        panelTrace(host,scope,scaled(new double[]{.594,.088,.707,.088,.720,.051,.934,.051},width,height),.35,.76);
-        panelTrace(host,scope,scaled(new double[]{.938,.099,.938,.963,.338,.963},width,height),.58,.76);
-        panelTrace(host,scope,scaled(new double[]{.046,.948,.097,.948,.111,.932,.156,.932},width,height),.17,.64);
-    }
-
-    private static void panelTrace(Pane host,MotionScope scope,double[] points,double phase,double intensity){
-        trace(host,scope,points,7,phase,intensity,true);
-    }
-
-    private static void trace(Pane host,MotionScope scope,double[] points,double seconds,double phase,double intensity) {
-        trace(host,scope,points,seconds,phase,intensity,false);
-    }
-    private static void trace(Pane host,MotionScope scope,double[] points,double seconds,double phase,double intensity,boolean panel) {
-        var path=new Polyline(points);path.setManaged(false);path.setMouseTransparent(true);
-        path.setFill(null);path.setStroke(Color.web("#67e4f5"));path.setStrokeWidth(2.2);
-        path.setStrokeLineCap(StrokeLineCap.ROUND);path.setOpacity(0);
-        path.getStyleClass().add("circuit-trace");
-        double length=0;
-        for(int index=2;index<points.length;index+=2)
-            length+=Math.hypot(points[index]-points[index-2],points[index+1]-points[index-1]);
-        double segment=Math.min(90,length*.2),cycle=length+segment;
-        path.getStrokeDashArray().setAll(segment,length);
-        path.setStrokeDashOffset(-phase*cycle);
-        path.setId("circuit-trace-"+host.getChildren().size());host.getChildren().add(path);
-        double travel=panel?2.4:seconds;
-        var timeline=new Timeline(new KeyFrame(Duration.ZERO,
-                new KeyValue(path.strokeDashOffsetProperty(),-phase*cycle,Interpolator.LINEAR),
-                new KeyValue(path.opacityProperty(),0,Interpolator.EASE_BOTH)),
-                new KeyFrame(Duration.seconds(travel*.14),new KeyValue(path.opacityProperty(),intensity,Interpolator.EASE_BOTH)),
-                new KeyFrame(Duration.seconds(travel*.72),new KeyValue(path.opacityProperty(),intensity*.56,Interpolator.EASE_BOTH)),
-                new KeyFrame(Duration.seconds(travel),
-                        new KeyValue(path.strokeDashOffsetProperty(),-(phase+1)*cycle,Interpolator.LINEAR),
-                        new KeyValue(path.opacityProperty(),panel?intensity*.12:0,Interpolator.EASE_BOTH)));
-        if(panel)timeline.getKeyFrames().addAll(
-                new KeyFrame(Duration.seconds(3.2),new KeyValue(path.opacityProperty(),0,Interpolator.EASE_BOTH)),
-                new KeyFrame(Duration.seconds(seconds),new KeyValue(path.strokeDashOffsetProperty(),-(phase+1)*cycle),
-                        new KeyValue(path.opacityProperty(),0)));
-        timeline.setCycleCount(Animation.INDEFINITE);
-        scope.register(timeline,()->{path.setOpacity(0);path.setStrokeDashOffset(-phase*cycle);});
     }
     private static double[] mirror(double[] points,double width) {
         double[] result=points.clone();for(int index=0;index<result.length;index+=2)result[index]=width-result[index];return result;

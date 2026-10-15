@@ -63,7 +63,8 @@ public final class InstructionArtwork {
         double[] area=switch(topic){
             case 1 -> new double[]{400,190,1120,560};
             case 2 -> new double[]{80,380,260,400};
-            case 3 -> new double[]{1600,130,280,650};
+            case 3 -> new double[]{GameplayLayout.LADDER_PANEL.x(),GameplayLayout.LADDER_PANEL.y(),
+                    GameplayLayout.LADDER_PANEL.width(),GameplayLayout.LADDER_PANEL.height()};
             case 4 -> new double[]{555,350,796,342};
             default -> new double[]{0,0,0,0};
         };
@@ -91,17 +92,6 @@ public final class InstructionArtwork {
         dots.add(dot);host.getChildren().add(dot);
     }
     private void trace(double seconds,double delay,double...points){
-        var path=line(3.2,points);double length=0;
-        for(int i=2;i<points.length;i+=2)length+=Math.hypot(points[i]-points[i-2],points[i+1]-points[i-1]);
-        double segment=Math.min(110,length*.2);path.getStrokeDashArray().setAll(segment,length+segment);
-        path.setOpacity(0);
-        var timeline=new Timeline(new KeyFrame(Duration.ZERO,new KeyValue(path.strokeDashOffsetProperty(),segment),
-                        new KeyValue(path.opacityProperty(),0)),
-                new KeyFrame(Duration.seconds(.3),new KeyValue(path.opacityProperty(),.9,Interpolator.EASE_BOTH)),
-                new KeyFrame(Duration.seconds(seconds-.6),new KeyValue(path.opacityProperty(),.9)),
-                new KeyFrame(Duration.seconds(seconds),new KeyValue(path.strokeDashOffsetProperty(),-length,Interpolator.LINEAR),
-                        new KeyValue(path.opacityProperty(),0,Interpolator.EASE_BOTH)));
-        timeline.setCycleCount(Animation.INDEFINITE);timeline.setDelay(Duration.seconds(delay));
-        motion.register(timeline,()->{path.setOpacity(0);path.setStrokeDashOffset(segment);});
+        CircuitEffects.addTrace(host,motion,points,seconds,delay/seconds);
     }
 }

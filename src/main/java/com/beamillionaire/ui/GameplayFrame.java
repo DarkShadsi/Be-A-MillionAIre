@@ -27,15 +27,22 @@ final class GameplayFrame {
         polygon(pane,shapes,2.5,368,140,1518,140,1552,174,1552,746,1518,780,402,780,368,746);
         polygon(pane,shapes,2,80,174,114,140,306,140,340,174,340,276,306,310,114,310,80,276);
         polygon(pane,shapes,2,80,414,114,380,306,380,340,414,340,746,306,780,114,780,80,746);
-        polygon(pane,shapes,2.5,1600,164,1634,130,1846,130,1880,164,1880,746,1846,780,1634,780,1600,746);
-        polygon(pane,shapes,2,1600,938,1618,920,1862,920,1880,938,1880,1002,1600,1002);
+        var ladder=GameplayLayout.LADDER_PANEL;
+        double lx=ladder.x(),ly=ladder.y(),lr=lx+ladder.width(),lb=ly+ladder.height();
+        polygon(pane,shapes,2.5,lx,ly+34,lx+34,ly,lr-34,ly,lr,ly+34,lr,lb-34,lr-34,lb,lx+34,lb,lx,lb-34);
+        var creditFrame=GameplayLayout.creditsOutline();creditFrame.setFill(Color.TRANSPARENT);creditFrame.setStrokeWidth(2);
+        add(pane,shapes,creditFrame);
         polygon(pane,shapes,2,715,72,745,48,1175,48,1205,72,1175,96,745,96);
         polygon(pane,shapes,1.5,123,159,297,159,309,171,309,195,297,207,123,207,111,195,111,171);
-        polygon(pane,shapes,1.5,1625,151,1855,151,1855,193,1625,193);
+        var ladderHeading=GameplayLayout.LADDER_HEADING;
+        polygon(pane,shapes,1.5,ladderHeading.x(),ladderHeading.y(),ladderHeading.x()+ladderHeading.width(),ladderHeading.y(),
+                ladderHeading.x()+ladderHeading.width(),ladderHeading.y()+ladderHeading.height(),ladderHeading.x(),ladderHeading.y()+ladderHeading.height());
         game.text(pane,"CATEGORY",111,159,198,45,27,false);
         game.text(pane,"USE HELP",94,389,232,43,30,true);
-        game.text(pane,"PRIZE LADDER",1625,151,230,42,28,true);
-        game.text(pane,"CREDITS",1605,873,270,40,28,true);
+        game.text(pane,"PRIZE LADDER",ladderHeading.x(),ladderHeading.y(),ladderHeading.width(),ladderHeading.height(),28,true);
+        var creditsHeading=GameplayLayout.CREDITS_HEADING;
+        var creditsTitle=game.text(pane,"CREDITS",creditsHeading.x(),creditsHeading.y(),creditsHeading.width(),creditsHeading.height(),32,true);
+        creditsTitle.setId("credits-heading");
         for(int position=15;position>=1;position--){
             int row=position;
             Color color=Color.web(position>=13?"#ef795c":position>=10?"#d6a253":position>=5?"#d6c15b":"#9bd492");

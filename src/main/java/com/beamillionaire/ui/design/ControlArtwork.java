@@ -91,9 +91,11 @@ public final class ControlArtwork {
     }
 
     public static GameButton createWalkAway(String caption, Font font, Color ink) {
-        var bounds = new Rectangle2D(52,889,361,130);
+        var target = GameplayLayout.WALK_AWAY;
+        var bounds = new Rectangle2D(target.x(),target.y(),target.width(),target.height());
         var artwork = canvas(bounds);
-        double[] points = {57,894,255,894,303,935,407,935,407,1012,57,1012};
+        double x=bounds.getMinX(),y=bounds.getMinY();
+        double[] points = {x+5,y+5,x+225,y+5,x+278,y+52,x+395,y+52,x+395,y+145,x+5,y+145};
         var frame = polygon(points,bounds,false);
         frame.setFill(Color.TRANSPARENT); frame.setStroke(CYAN); frame.setStrokeWidth(3.5);
         frame.setStrokeLineJoin(StrokeLineJoin.ROUND);
@@ -102,7 +104,7 @@ public final class ControlArtwork {
         var button = new GameButton(artwork,bounds.getWidth(),bounds.getHeight(),caption,hit);
         button.relocate(bounds.getMinX(),bounds.getMinY()); button.setId("walk-away");
         button.setCaption(caption.toUpperCase(Locale.ROOT),font,ink);
-        button.setCaptionBounds(new Rectangle2D(18,45,315,68));
+        button.setCaptionBounds(new Rectangle2D(18,52,364,80));
         return button;
     }
 
