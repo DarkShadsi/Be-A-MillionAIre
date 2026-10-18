@@ -5,3 +5,5 @@ dist/
 .vscode/
 *.iml
 .DS_Store
+
+out/
